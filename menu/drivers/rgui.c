@@ -5636,14 +5636,22 @@ static bool rgui_set_aspect_ratio(rgui_t *rgui,
          break;
       default:
          /* 4:3 */
+
+      #if 1 //make RGUI default 4:3 into vertical aspect ratio instead
+         rgui->frame_buf.width = 320;
+         rgui->frame_buf.height = 427;
+
+         #else //standard RGUI
          if (rgui->frame_buf.height == 240)
             rgui->frame_buf.width = 320;
          else
             rgui->frame_buf.width = RGUI_ROUND_FB_WIDTH(
                   ( 4.0f / 3.0f)  * (float)rgui->frame_buf.height);
+       #endif
          base_term_width = rgui->frame_buf.width;
          break;
    }
+
 
 #ifdef DJGPP
    if (string_is_equal(driver_ident, "vga")) {
@@ -5737,6 +5745,8 @@ static bool rgui_set_aspect_ratio(rgui_t *rgui,
    }
 #endif
    
+   RARCH_LOG("[GL]: RGUI Buffer is %d x %d.\n", rgui->frame_buf.width, rgui->frame_buf.height );
+
    /* Allocate frame buffer */
    rgui->frame_buf.data = (uint16_t*)calloc(
          rgui->frame_buf.width * rgui->frame_buf.height, sizeof(uint16_t));

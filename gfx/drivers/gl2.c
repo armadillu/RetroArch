@@ -131,6 +131,13 @@ static const GLfloat tex_coords[] = {
    1, 1
 };
 
+static const GLfloat tex_coordsRot[] = {
+   0,1,
+   0,0,
+   1,1,
+   1,0
+};
+
 static const GLfloat white_color[] = {
    1, 1, 1, 1,
    1, 1, 1, 1,
@@ -2448,7 +2455,7 @@ static INLINE void gl2_draw_texture(gl2_t *gl)
    color[15]              = gl->menu_texture_alpha;
 
    gl->coords.vertex      = vertexes_flipped;
-   gl->coords.tex_coord   = tex_coords;
+   gl->coords.tex_coord   = tex_coordsRot; //supply 270 rotated coords here instead of tex_coords
    gl->coords.color       = color;
 
    glBindTexture(GL_TEXTURE_2D, gl->menu_texture);
