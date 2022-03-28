@@ -661,7 +661,7 @@ static const rgui_theme_t rgui_theme_opaque_hacking_the_kernel = {
 };
 
 static const rgui_theme_t rgui_theme_nord = {
-   0xFF8FBCBB, /* hover_color */
+   0xffff9d00, /* hover_color */
    0xFFD8DEE9, /* normal_color */
    0xFF81A1C1, /* title_color */
    0xC0363C4F, /* bg_dark_color */
@@ -673,7 +673,7 @@ static const rgui_theme_t rgui_theme_nord = {
 };
 
 static const rgui_theme_t rgui_theme_opaque_nord = {
-   0xFF8FBCBB, /* hover_color */
+   0xffff9d00, /* hover_color */
    0xFFD8DEE9, /* normal_color */
    0xFF81A1C1, /* title_color */
    0xFF292936, /* bg_dark_color */
@@ -5745,7 +5745,7 @@ static bool rgui_set_aspect_ratio(rgui_t *rgui,
    }
 #endif
    
-   RARCH_LOG("[GL]: RGUI Buffer is %d x %d.\n", rgui->frame_buf.width, rgui->frame_buf.height );
+   //RARCH_LOG("[GL]: RGUI Buffer is %d x %d.\n", rgui->frame_buf.width, rgui->frame_buf.height );
 
    /* Allocate frame buffer */
    rgui->frame_buf.data = (uint16_t*)calloc(
