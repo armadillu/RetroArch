@@ -70,9 +70,10 @@ void libretro_dummy_retro_init(void)
    unsigned i;
 
    /* Sensible defaults */
+   //this works for my 1024 x 768 panel in portrait for RGUI
    frame_buf_width = 320;
-   frame_buf_height = 240;
-
+   frame_buf_height = 427;
+/*
 #if defined(HAVE_MENU) && defined(HAVE_RGUI)
    if (string_is_equal(settings->arrays.menu_driver, "rgui"))
    {
@@ -87,12 +88,12 @@ void libretro_dummy_retro_init(void)
             frame_buf_width = 384;
             break;
          default:
-            /* 4:3 */
-            frame_buf_width = 320;
+            frame_buf_width = 240;
             break;
       }
    }
 #endif
+*/
 
    dummy_frame_buf = (uint16_t*)calloc(frame_buf_width * frame_buf_height, sizeof(uint16_t));
    for (i = 0; i < (unsigned)(frame_buf_width * frame_buf_height); i++)

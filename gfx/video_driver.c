@@ -2025,11 +2025,19 @@ void video_driver_set_viewport_core(void)
       return;
 
    /* Fallback to 1:1 pixel ratio if none provided */
-   if (geom->aspect_ratio > 0.0f)
-      aspectratio_lut[ASPECT_RATIO_CORE].value = geom->aspect_ratio;
-   else
-      aspectratio_lut[ASPECT_RATIO_CORE].value =
-         (float)geom->base_width / geom->base_height;
+   //printf("AR: w=%d h=%d - ar: %f\n", geom->base_width, geom->base_height, geom->aspect_ratio);
+   if(geom->base_width == 320 && geom->base_height == 427){ //we are in menu RGUI
+      //printf("in RGUI!\n");
+      aspectratio_lut[ASPECT_RATIO_CORE].value = (float)geom->base_height / geom->base_width;
+   }else{
+         /* Fallback to 1:1 pixel ratio if none provided */
+         if (geom->aspect_ratio > 0.0f)
+            //note that we flip the AR to compensate for the screen rotation
+            aspectratio_lut[ASPECT_RATIO_CORE].value = (1.0/geom->aspect_ratio); 
+         else
+            aspectratio_lut[ASPECT_RATIO_CORE].value = (float)geom->base_height / geom->base_width;           
+   }
+   //printf("set AR: %f\n", aspectratio_lut[ASPECT_RATIO_CORE].value);
 }
 
 void video_driver_set_rgba(void)
