@@ -15,7 +15,7 @@ make HAVE_LAKKA=0 HAVE_BLUETOOTH=0 -j2 -s
 git clone git@github.com:libretro/libretro-super.git
 cd libretro-super
 
-./libretro-fetch.sh fbneo mame2003_plus fbalpha2012_cps1 fbalpha2012_cps2 fbalpha2012_neogeo
-CFLAGS="-march=native -mtune=native -s -O2" CXXFLAGS="-march=native -mtune=native -s -O2" CXX=" g++ -s -O2" CC=" gcc -s -O2"  ./libretro-build.sh fbneo mame2003_plus fbalpha2012
+./libretro-fetch.sh fbneo mame2003_plus 
+JOBS=3 NO_CLEAN=1 CFLAGS="-mtune=cortex-a53 -Ofast -march=armv8-a+crc -mfpu=neon-fp-armv8" CXXFLAGS="-march=armv8-a+crc -mfpu=neon-fp-armv8 -mtune=cortex-a53  -Ofast" ./libretro-build.sh fbneo mame2003_plus 
 
 cp dist/unix/* ~/.config/retroarch/cores
