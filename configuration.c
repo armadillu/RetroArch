@@ -453,7 +453,7 @@ static const enum audio_driver_enum AUDIO_DEFAULT_DRIVER = AUDIO_PS3;
 static const enum audio_driver_enum AUDIO_DEFAULT_DRIVER = AUDIO_CTR;
 #elif defined(SWITCH)
 static const enum audio_driver_enum AUDIO_DEFAULT_DRIVER = AUDIO_SWITCH;
-#elif defined(DINGUX_BETA) && defined(HAVE_ALSA)
+#elif (defined(DINGUX_BETA) || defined(MIYOO)) && defined(HAVE_ALSA)
 static const enum audio_driver_enum AUDIO_DEFAULT_DRIVER = AUDIO_ALSA;
 #elif defined(DINGUX) && defined(HAVE_AL)
 static const enum audio_driver_enum AUDIO_DEFAULT_DRIVER = AUDIO_AL;
@@ -1752,6 +1752,9 @@ static struct config_bool_setting *populate_settings_bool(
 #ifdef HAVE_THREADS
    SETTING_BOOL("threaded_data_runloop_enable",  &settings->bools.threaded_data_runloop_enable, true, DEFAULT_THREADED_DATA_RUNLOOP_ENABLE, false);
 #endif
+#ifdef HAVE_MIST
+   SETTING_BOOL("steam_rich_presence_enable",    &settings->bools.steam_rich_presence_enable, true, false, false);
+#endif
 #ifdef HAVE_MENU
    SETTING_BOOL("menu_unified_controls",         &settings->bools.menu_unified_controls, true, false, false);
    SETTING_BOOL("menu_throttle_framerate",       &settings->bools.menu_throttle_framerate, true, true, false);
@@ -1792,6 +1795,9 @@ static struct config_bool_setting *populate_settings_bool(
    SETTING_BOOL("settings_show_playlists",        &settings->bools.settings_show_playlists, true, DEFAULT_SETTINGS_SHOW_PLAYLISTS, false);
    SETTING_BOOL("settings_show_user",             &settings->bools.settings_show_user, true, DEFAULT_SETTINGS_SHOW_USER, false);
    SETTING_BOOL("settings_show_directory",        &settings->bools.settings_show_directory, true, DEFAULT_SETTINGS_SHOW_DIRECTORY, false);
+#ifdef HAVE_MIST
+   SETTING_BOOL("settings_show_steam",            &settings->bools.settings_show_steam, true, DEFAULT_SETTINGS_SHOW_STEAM, false);
+#endif
 
    SETTING_BOOL("quick_menu_show_resume_content",             &settings->bools.quick_menu_show_resume_content, true, DEFAULT_QUICK_MENU_SHOW_RESUME_CONTENT, false);
    SETTING_BOOL("quick_menu_show_restart_content",            &settings->bools.quick_menu_show_restart_content, true, DEFAULT_QUICK_MENU_SHOW_RESTART_CONTENT, false);
@@ -2211,6 +2217,7 @@ static struct config_uint_setting *populate_settings_uint(
    SETTING_UINT("menu_font_color_blue",         &settings->uints.menu_font_color_blue, true, menu_font_color_blue, false);
    SETTING_UINT("menu_xmb_thumbnail_scale_factor", &settings->uints.menu_xmb_thumbnail_scale_factor, true, xmb_thumbnail_scale_factor, false);
    SETTING_UINT("menu_xmb_vertical_fade_factor",&settings->uints.menu_xmb_vertical_fade_factor, true, DEFAULT_XMB_VERTICAL_FADE_FACTOR, false);
+   SETTING_UINT("menu_xmb_title_margin",        &settings->uints.menu_xmb_title_margin, true, DEFAULT_XMB_TITLE_MARGIN, false);
 #endif
    SETTING_UINT("materialui_menu_color_theme",  &settings->uints.menu_materialui_color_theme, true, DEFAULT_MATERIALUI_THEME, false);
    SETTING_UINT("materialui_menu_transition_animation", &settings->uints.menu_materialui_transition_animation, true, DEFAULT_MATERIALUI_TRANSITION_ANIM, false);
@@ -2328,6 +2335,10 @@ static struct config_uint_setting *populate_settings_uint(
    SETTING_UINT("cpu_scaling_mode",            &settings->uints.cpu_scaling_mode,    true,   0, false);
    SETTING_UINT("cpu_min_freq",                &settings->uints.cpu_min_freq,        true,   1, false);
    SETTING_UINT("cpu_max_freq",                &settings->uints.cpu_max_freq,        true, ~0U, false);
+#endif
+
+#ifdef HAVE_MIST
+   SETTING_UINT("steam_rich_presence_format",   &settings->uints.steam_rich_presence_format, true, DEFAULT_STEAM_RICH_PRESENCE_FORMAT, false);
 #endif
 
    *size = count;
@@ -2634,7 +2645,7 @@ void config_set_defaults(void *data)
 #endif
 
    input_config_reset();
-   input_remapping_deinit();
+   input_remapping_deinit(false);
    input_remapping_set_defaults(false);
 
    /* Verify that binds are in proper order. */
@@ -3422,9 +3433,6 @@ static bool config_load_file(global_t *global,
 
       snprintf(buf, sizeof(buf), "input_player%u_mouse_index", i + 1);
       CONFIG_GET_INT_BASE(conf, settings, uints.input_mouse_index[i], buf);
-
-      snprintf(buf, sizeof(buf), "input_libretro_device_p%u", i + 1);
-      CONFIG_GET_INT_BASE(conf, settings, uints.input_libretro_device[i], buf);
    }
 
    /* LED map for use by the led driver */
@@ -4704,8 +4712,6 @@ bool config_save_file(const char *path)
       config_set_int(conf, cfg, settings->uints.input_device[i]);
       snprintf(cfg, sizeof(cfg), "input_player%u_joypad_index", i + 1);
       config_set_int(conf, cfg, settings->uints.input_joypad_index[i]);
-      snprintf(cfg, sizeof(cfg), "input_libretro_device_p%u", i + 1);
-      config_set_int(conf, cfg, input_config_get_device(i));
       snprintf(cfg, sizeof(cfg), "input_player%u_analog_dpad_mode", i + 1);
       config_set_int(conf, cfg, settings->uints.input_analog_dpad_mode[i]);
       snprintf(cfg, sizeof(cfg), "input_player%u_mouse_index", i + 1);
@@ -5107,7 +5113,7 @@ bool input_remapping_load_file(void *data, const char *path)
 
    if (!string_is_empty(runloop_st->name.remapfile))
    {
-      input_remapping_deinit();
+      input_remapping_deinit(false);
       input_remapping_set_defaults(false);
    }
    runloop_st->name.remapfile = strdup(path);
@@ -5168,13 +5174,7 @@ bool input_remapping_load_file(void *data, const char *path)
             key_ident[0]  = '\0';
 
             fill_pathname_join_delim(stk_ident, s3,
-                  key_string, '$', sizeof(stk_ident));
-
-            snprintf(stk_ident,
-                  sizeof(stk_ident),
-                  "%s_%s",
-                  s3,
-                  key_string);
+                  key_string, '_', sizeof(stk_ident));
 
             if (config_get_int(conf, stk_ident, &stk_remap))
             {
@@ -5218,7 +5218,7 @@ bool input_remapping_load_file(void *data, const char *path)
 
 /**
  * input_remapping_save_file:
- * @path                     : Path to remapping file (relative path).
+ * @path                     : Path to remapping file.
  *
  * Saves remapping values to file.
  *
@@ -5228,23 +5228,33 @@ bool input_remapping_save_file(const char *path)
 {
    bool ret;
    unsigned i, j;
-   char remap_file[PATH_MAX_LENGTH];
+   char remap_file_dir[PATH_MAX_LENGTH];
    char key_strings[RARCH_FIRST_CUSTOM_BIND + 8][8] = {
       "b", "y", "select", "start",
       "up", "down", "left", "right",
       "a", "x", "l", "r", "l2", "r2",
       "l3", "r3", "l_x+", "l_x-", "l_y+", "l_y-", "r_x+", "r_x-", "r_y+", "r_y-" };
-   config_file_t               *conf = NULL;
-   settings_t              *settings = config_st;
-   unsigned max_users                = settings->uints.input_max_users;
-   const char *dir_input_remapping   = settings->paths.directory_input_remapping;
+   const char      *remap_file = path;
+   config_file_t         *conf = NULL;
+   runloop_state_t *runloop_st = runloop_state_get_ptr();
+   settings_t        *settings = config_st;
+   unsigned          max_users = settings->uints.input_max_users;
 
-   remap_file[0]                     = '\0';
+   remap_file_dir[0]           = '\0';
 
-   fill_pathname_join_concat(remap_file, dir_input_remapping, path,
-         FILE_PATH_REMAP_EXTENSION,
-         sizeof(remap_file));
+   if (string_is_empty(remap_file))
+      return false;
 
+   /* Create output directory, if required */
+   strlcpy(remap_file_dir, remap_file, sizeof(remap_file_dir));
+   path_parent_dir(remap_file_dir);
+
+   if (!string_is_empty(remap_file_dir) &&
+       !path_is_directory(remap_file_dir) &&
+       !path_mkdir(remap_file_dir))
+      return false;
+
+   /* Attempt to load file */
    if (!(conf = config_file_new_from_path_to_string(remap_file)))
    {
       if (!(conf = config_file_new_alloc()))
@@ -5290,14 +5300,20 @@ bool input_remapping_save_file(const char *path)
       for (j = 0; j < RARCH_FIRST_CUSTOM_BIND; j++)
       {
          char btn_ident[128];
+         char key_ident[128];
+         const char *key_string = key_strings[j];
          unsigned remap_id      = settings->uints.input_remap_ids[i][j];
          unsigned keymap_id     = settings->uints.input_keymapper_ids[i][j];
-         const char *key_string = key_strings[j];
+
          btn_ident[0]           = '\0';
+         key_ident[0]           = '\0';
+
          fill_pathname_join_delim(btn_ident, s1,
                key_string, '_', sizeof(btn_ident));
+         fill_pathname_join_delim(key_ident, s2,
+               key_string, '_', sizeof(key_ident));
 
-         /* only save values that have been modified */
+         /* Only save modified button values */
          if (remap_id == j)
             config_unset(conf, btn_ident);
          else
@@ -5309,48 +5325,48 @@ bool input_remapping_save_file(const char *path)
                      settings->uints.input_remap_ids[i][j]);
          }
 
-         if (keymap_id != RETROK_UNKNOWN)
-         {
-            char key_ident[128];
-            key_ident[0] = '\0';
-            fill_pathname_join_delim(key_ident, s2,
-                  key_string, '_', sizeof(key_ident));
+         /* Only save non-empty keymapper values */
+         if (keymap_id == RETROK_UNKNOWN)
+            config_unset(conf, key_ident);
+         else
             config_set_int(conf, key_ident,
                   settings->uints.input_keymapper_ids[i][j]);
-         }
       }
 
       for (j = RARCH_FIRST_CUSTOM_BIND; j < (RARCH_FIRST_CUSTOM_BIND + 8); j++)
       {
          char stk_ident[128];
+         char key_ident[128];
+         const char *key_string = key_strings[j];
          unsigned remap_id      = settings->uints.input_remap_ids[i][j];
          unsigned keymap_id     = settings->uints.input_keymapper_ids[i][j];
-         const char *key_string = key_strings[j];
+
          stk_ident[0]           = '\0';
+         key_ident[0]           = '\0';
+
          fill_pathname_join_delim(stk_ident, s3,
                key_string, '_', sizeof(stk_ident));
+         fill_pathname_join_delim(key_ident, s2,
+               key_string, '_', sizeof(key_ident));
 
+         /* Only save modified button values */
          if (remap_id == j)
             config_unset(conf, stk_ident);
          else
          {
             if (remap_id == RARCH_UNMAPPED)
-               config_set_int(conf, stk_ident,
-                     -1);
+               config_set_int(conf, stk_ident, -1);
             else
                config_set_int(conf, stk_ident,
                      settings->uints.input_remap_ids[i][j]);
          }
 
-         if (keymap_id != RETROK_UNKNOWN)
-         {
-            char key_ident[128];
-            key_ident[0] = '\0';
-            fill_pathname_join_delim(key_ident, s2,
-                  key_string, '_', sizeof(key_ident));
+         /* Only save non-empty keymapper values */
+         if (keymap_id == RETROK_UNKNOWN)
+            config_unset(conf, key_ident);
+         else
             config_set_int(conf, key_ident,
                   settings->uints.input_keymapper_ids[i][j]);
-         }
       }
 
       snprintf(s1, sizeof(s1), "input_libretro_device_p%u", i + 1);
@@ -5366,18 +5382,18 @@ bool input_remapping_save_file(const char *path)
    ret = config_file_write(conf, remap_file, true);
    config_file_free(conf);
 
-   return ret;
-}
+   /* Cache remap file path
+    * > Must guard against the case where
+    *   runloop_st->name.remapfile itself
+    *   is passed to this function... */
+   if (runloop_st->name.remapfile != remap_file)
+   {
+      if (runloop_st->name.remapfile)
+         free(runloop_st->name.remapfile);
+      runloop_st->name.remapfile = strdup(remap_file);
+   }
 
-bool input_remapping_remove_file(const char *path,
-      const char *dir_input_remapping)
-{
-   char remap_file[PATH_MAX_LENGTH];
-   remap_file[0]  = '\0';
-   fill_pathname_join_concat(remap_file, dir_input_remapping, path,
-         FILE_PATH_REMAP_EXTENSION,
-         sizeof(remap_file));
-   return filestream_delete(remap_file) == 0 ? true : false;
+   return ret;
 }
 #endif
 

@@ -1294,6 +1294,114 @@ end:
    return count;
 }
 
+static unsigned menu_displaylist_parse_remap_file_manager_list(
+      menu_displaylist_info_t *info, settings_t *settings)
+{
+   unsigned count                = 0;
+   bool has_content              = !string_is_empty(path_get(RARCH_PATH_CONTENT));
+   bool core_remap_active        = retroarch_ctl(RARCH_CTL_IS_REMAPS_CORE_ACTIVE, NULL);
+   bool content_dir_remap_active = retroarch_ctl(RARCH_CTL_IS_REMAPS_CONTENT_DIR_ACTIVE, NULL);
+   bool game_remap_active        = retroarch_ctl(RARCH_CTL_IS_REMAPS_GAME_ACTIVE, NULL);
+
+   /* Sanity check - cannot handle remap files
+    * unless a valid core is running */
+   if (!retroarch_ctl(RARCH_CTL_CORE_IS_RUNNING, NULL) ||
+       retroarch_ctl(RARCH_CTL_IS_DUMMY_CORE, NULL))
+      goto end;
+
+   /* Show currently 'active' remap file */
+   if (menu_entries_append_enum(info->list,
+         msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_INFO),
+         msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_INFO),
+         MENU_ENUM_LABEL_REMAP_FILE_INFO,
+         MENU_SETTINGS_CORE_INFO_NONE, 0, 0))
+      count++;
+
+   /* Load remap file */
+   if (menu_entries_append_enum(info->list,
+         msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_LOAD),
+         msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_LOAD),
+         MENU_ENUM_LABEL_REMAP_FILE_LOAD,
+         MENU_SETTING_ACTION_REMAP_FILE_LOAD, 0, 0))
+      count++;
+
+   /* Save remap files */
+   if (has_content &&
+       !game_remap_active &&
+       menu_entries_append_enum(info->list,
+            msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_SAVE_GAME),
+            msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_SAVE_GAME),
+            MENU_ENUM_LABEL_REMAP_FILE_SAVE_GAME,
+            MENU_SETTING_ACTION_REMAP_FILE_SAVE_GAME, 0, 0))
+      count++;
+
+   if (has_content &&
+       !game_remap_active &&
+       !content_dir_remap_active &&
+       menu_entries_append_enum(info->list,
+            msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_SAVE_CONTENT_DIR),
+            msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_SAVE_CONTENT_DIR),
+            MENU_ENUM_LABEL_REMAP_FILE_SAVE_CONTENT_DIR,
+            MENU_SETTING_ACTION_REMAP_FILE_SAVE_CONTENT_DIR, 0, 0))
+      count++;
+
+   if (!game_remap_active &&
+       !content_dir_remap_active &&
+       !core_remap_active &&
+       menu_entries_append_enum(info->list,
+            msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_SAVE_CORE),
+            msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_SAVE_CORE),
+            MENU_ENUM_LABEL_REMAP_FILE_SAVE_CORE,
+            MENU_SETTING_ACTION_REMAP_FILE_SAVE_CORE, 0, 0))
+      count++;
+
+   /* Remove remap files */
+   if (has_content &&
+       game_remap_active &&
+       menu_entries_append_enum(info->list,
+            msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_REMOVE_GAME),
+            msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_REMOVE_GAME),
+            MENU_ENUM_LABEL_REMAP_FILE_REMOVE_GAME,
+            MENU_SETTING_ACTION_REMAP_FILE_REMOVE_GAME, 0, 0))
+      count++;
+
+   if (has_content &&
+       content_dir_remap_active &&
+       menu_entries_append_enum(info->list,
+            msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_REMOVE_CONTENT_DIR),
+            msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_REMOVE_CONTENT_DIR),
+            MENU_ENUM_LABEL_REMAP_FILE_REMOVE_CONTENT_DIR,
+            MENU_SETTING_ACTION_REMAP_FILE_REMOVE_CONTENT_DIR, 0, 0))
+      count++;
+
+   if (core_remap_active &&
+       menu_entries_append_enum(info->list,
+            msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_REMOVE_CORE),
+            msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_REMOVE_CORE),
+            MENU_ENUM_LABEL_REMAP_FILE_REMOVE_CORE,
+            MENU_SETTING_ACTION_REMAP_FILE_REMOVE_CORE, 0, 0))
+      count++;
+
+   /* Reset input remaps */
+   if (menu_entries_append_enum(info->list,
+         msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_RESET),
+         msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_RESET),
+         MENU_ENUM_LABEL_REMAP_FILE_RESET,
+         MENU_SETTING_ACTION_REMAP_FILE_RESET, 0, 0))
+      count++;
+end:
+   /* Fallback */
+   if (count == 0)
+      if (menu_entries_append_enum(info->list,
+            msg_hash_to_str(MENU_ENUM_LABEL_VALUE_NO_ENTRIES_TO_DISPLAY),
+            msg_hash_to_str(MENU_ENUM_LABEL_NO_ENTRIES_TO_DISPLAY),
+            MENU_ENUM_LABEL_NO_ENTRIES_TO_DISPLAY,
+            FILE_TYPE_NONE, 0, 0))
+         count++;
+
+   return count;
+}
+
 static unsigned menu_displaylist_parse_supported_cores(menu_displaylist_info_t *info,
       settings_t *settings, const char *content_path,
       enum msg_hash_enums core_enum_label,
@@ -2446,6 +2554,146 @@ static int menu_displaylist_parse_database_entry(menu_handle_t *menu,
             goto error;
       }
 
+      if (db_info_entry->category)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_CATEGORY,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_CATEGORY),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_CATEGORY),
+                  db_info_entry->category, info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->language)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_LANGUAGE,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_LANGUAGE),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_LANGUAGE),
+                  db_info_entry->language, info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->region)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_REGION,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_REGION),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_REGION),
+                  db_info_entry->region, info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->score)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_SCORE,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_SCORE),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_SCORE),
+                  db_info_entry->score, info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->media)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_MEDIA,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_MEDIA),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_MEDIA),
+                  db_info_entry->media, info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->controls)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_CONTROLS,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_CONTROLS),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_CONTROLS),
+                  db_info_entry->controls, info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->artstyle)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_ARTSTYLE,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_ARTSTYLE),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_ARTSTYLE),
+                  db_info_entry->artstyle, info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->gameplay)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_GAMEPLAY,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_GAMEPLAY),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_GAMEPLAY),
+                  db_info_entry->gameplay, info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->narrative)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_NARRATIVE,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_NARRATIVE),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_NARRATIVE),
+                  db_info_entry->narrative, info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->pacing)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_PACING,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_PACING),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_PACING),
+                  db_info_entry->pacing, info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->perspective)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_PERSPECTIVE,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_PERSPECTIVE),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_PERSPECTIVE),
+                  db_info_entry->perspective, info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->setting)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_SETTING,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_SETTING),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_SETTING),
+                  db_info_entry->setting, info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->visual)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_VISUAL,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_VISUAL),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_VISUAL),
+                  db_info_entry->visual, info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->vehicular)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_VEHICULAR,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_VEHICULAR),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_VEHICULAR),
+                  db_info_entry->vehicular, info->path, info->list) == -1)
+            goto error;
+      }
+
       if (db_info_entry->developer)
       {
          for (k = 0; k < db_info_entry->developer->size; k++)
@@ -2666,6 +2914,36 @@ static int menu_displaylist_parse_database_entry(menu_handle_t *menu,
                   MENU_ENUM_LABEL_RDB_ENTRY_COOP,
                   msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_COOP),
                   msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_COOP),
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_TRUE), info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->achievements == 1)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_ACHIEVEMENTS,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_ACHIEVEMENTS),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_ACHIEVEMENTS),
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_TRUE), info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->console_exclusive == 1)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_CONSOLE_EXCLUSIVE,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_CONSOLE_EXCLUSIVE),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_CONSOLE_EXCLUSIVE),
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_TRUE), info->path, info->list) == -1)
+            goto error;
+      }
+
+      if (db_info_entry->platform_exclusive == 1)
+      {
+         if (create_string_list_rdb_entry_string(
+                  MENU_ENUM_LABEL_RDB_ENTRY_PLATFORM_EXCLUSIVE,
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RDB_ENTRY_PLATFORM_EXCLUSIVE),
+                  msg_hash_to_str(MENU_ENUM_LABEL_RDB_ENTRY_PLATFORM_EXCLUSIVE),
                   msg_hash_to_str(MENU_ENUM_LABEL_VALUE_TRUE), info->path, info->list) == -1)
             goto error;
       }
@@ -6404,56 +6682,12 @@ unsigned menu_displaylist_build_list(
             unsigned max_users = settings->uints.input_max_users;
 
 #ifdef HAVE_CONFIGFILE
-            bool has_content   = !string_is_empty(path_get(RARCH_PATH_CONTENT));
-
             if (menu_entries_append_enum(list,
-                     msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_LOAD),
-                     msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_LOAD),
-                     MENU_ENUM_LABEL_REMAP_FILE_LOAD,
-                     MENU_SETTING_ACTION, 0, 0))
+                  msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_MANAGER_LIST),
+                  msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_MANAGER_LIST),
+                  MENU_ENUM_LABEL_REMAP_FILE_MANAGER_LIST,
+                  MENU_SETTING_ACTION_REMAP_FILE_MANAGER_LIST, 0, 0))
                count++;
-            if (menu_entries_append_enum(list,
-                     msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_SAVE_CORE),
-                     msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_SAVE_CORE),
-                     MENU_ENUM_LABEL_REMAP_FILE_SAVE_CORE,
-                     MENU_SETTING_ACTION, 0, 0))
-               count++;
-            if (has_content && menu_entries_append_enum(list,
-                     msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_SAVE_CONTENT_DIR),
-                     msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_SAVE_CONTENT_DIR),
-                     MENU_ENUM_LABEL_REMAP_FILE_SAVE_CONTENT_DIR,
-                     MENU_SETTING_ACTION, 0, 0))
-               count++;
-            if (has_content && menu_entries_append_enum(list,
-                     msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_SAVE_GAME),
-                     msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_SAVE_GAME),
-                     MENU_ENUM_LABEL_REMAP_FILE_SAVE_GAME,
-                     MENU_SETTING_ACTION, 0, 0))
-               count++;
-
-            if (retroarch_ctl(RARCH_CTL_IS_REMAPS_CORE_ACTIVE, NULL))
-               if (menu_entries_append_enum(list,
-                        msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_REMOVE_CORE),
-                        msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_REMOVE_CORE),
-                        MENU_ENUM_LABEL_REMAP_FILE_REMOVE_CORE,
-                        MENU_SETTING_ACTION, 0, 0))
-                  count++;
-
-            if (has_content && retroarch_ctl(RARCH_CTL_IS_REMAPS_GAME_ACTIVE, NULL))
-               if (menu_entries_append_enum(list,
-                        msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_REMOVE_GAME),
-                        msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_REMOVE_GAME),
-                        MENU_ENUM_LABEL_REMAP_FILE_REMOVE_GAME,
-                        MENU_SETTING_ACTION, 0, 0))
-                  count++;
-
-            if (has_content && retroarch_ctl(RARCH_CTL_IS_REMAPS_CONTENT_DIR_ACTIVE, NULL))
-               if (menu_entries_append_enum(list,
-                        msg_hash_to_str(MENU_ENUM_LABEL_VALUE_REMAP_FILE_REMOVE_CONTENT_DIR),
-                        msg_hash_to_str(MENU_ENUM_LABEL_REMAP_FILE_REMOVE_CONTENT_DIR),
-                        MENU_ENUM_LABEL_REMAP_FILE_REMOVE_CONTENT_DIR,
-                        MENU_SETTING_ACTION, 0, 0))
-                  count++;
 #endif
             if (menu_entries_append_enum(list,
                      msg_hash_to_str(MENU_ENUM_LABEL_VALUE_INPUT_TURBO_FIRE_SETTINGS),
@@ -7963,12 +8197,11 @@ unsigned menu_displaylist_build_list(
                {MENU_ENUM_LABEL_MOUSE_ENABLE,                                          PARSE_ONLY_BOOL,   true},
                {MENU_ENUM_LABEL_POINTER_ENABLE,                                        PARSE_ONLY_BOOL,   true},
                {MENU_ENUM_LABEL_THREADED_DATA_RUNLOOP_ENABLE,                          PARSE_ONLY_BOOL,   true},
+               {MENU_ENUM_LABEL_VIDEO_DISABLE_COMPOSITION,                             PARSE_ONLY_BOOL,   true},
                {MENU_ENUM_LABEL_UI_COMPANION_ENABLE,                                   PARSE_ONLY_BOOL,   true},
                {MENU_ENUM_LABEL_UI_COMPANION_START_ON_BOOT,                            PARSE_ONLY_BOOL,   true},
-               {MENU_ENUM_LABEL_UI_MENUBAR_ENABLE,                                     PARSE_ONLY_BOOL,   true},
                {MENU_ENUM_LABEL_DESKTOP_MENU_ENABLE,                                   PARSE_ONLY_BOOL,   true},
                {MENU_ENUM_LABEL_UI_COMPANION_TOGGLE,                                   PARSE_ONLY_BOOL,   false},
-               {MENU_ENUM_LABEL_VIDEO_DISABLE_COMPOSITION,                             PARSE_ONLY_BOOL,   true},
                {MENU_ENUM_LABEL_VIDEO_3DS_DISPLAY_MODE,                                PARSE_ONLY_UINT,   true},
                {MENU_ENUM_LABEL_VIDEO_3DS_LCD_BOTTOM,                                  PARSE_ONLY_BOOL,   true},
             };
@@ -8057,6 +8290,7 @@ unsigned menu_displaylist_build_list(
                {MENU_ENUM_LABEL_VIDEO_WINDOW_AUTO_HEIGHT_MAX,    PARSE_ONLY_UINT,  false},
                {MENU_ENUM_LABEL_VIDEO_WINDOW_OPACITY,            PARSE_ONLY_UINT,  true },
                {MENU_ENUM_LABEL_VIDEO_WINDOW_SHOW_DECORATIONS,   PARSE_ONLY_BOOL,  true },
+               {MENU_ENUM_LABEL_UI_MENUBAR_ENABLE,               PARSE_ONLY_BOOL,  true },
             };
 
             for (i = 0; i < ARRAY_SIZE(build_list); i++)
@@ -9075,6 +9309,40 @@ unsigned menu_displaylist_build_list(
             }
          }
          break;
+#ifdef HAVE_MIST
+      case DISPLAYLIST_STEAM_SETTINGS_LIST:
+         {
+            menu_displaylist_build_info_selective_t build_list[] = {
+               {MENU_ENUM_LABEL_STEAM_RICH_PRESENCE_ENABLE, PARSE_ONLY_BOOL, true},
+               {MENU_ENUM_LABEL_STEAM_RICH_PRESENCE_FORMAT, PARSE_ONLY_UINT, false},
+            };
+
+            for (i = 0; i < ARRAY_SIZE(build_list); i++) 
+            { 
+               switch (build_list[i].enum_idx) 
+               { 
+                  case MENU_ENUM_LABEL_STEAM_RICH_PRESENCE_FORMAT:
+                     if (settings->bools.steam_rich_presence_enable)
+                        build_list[i].checked = true; 
+                     break; 
+                  default: 
+                     break; 
+               } 
+            }
+
+            for (i = 0; i < ARRAY_SIZE(build_list); i++)
+            {
+               if (!build_list[i].checked) 
+                  continue;
+
+               if (MENU_DISPLAYLIST_PARSE_SETTINGS_ENUM(list,
+                        build_list[i].enum_idx,  build_list[i].parse_type,
+                        false) == 0)
+                  count++;
+            }
+         }
+         break;
+#endif
       case DISPLAYLIST_SETTINGS_ALL:
          {
 #ifdef HAVE_TRANSLATE
@@ -9111,6 +9379,9 @@ unsigned menu_displaylist_build_list(
                {MENU_ENUM_LABEL_PLAYLIST_SETTINGS,           PARSE_ACTION, true},
                {MENU_ENUM_LABEL_USER_SETTINGS,               PARSE_ACTION, true},
                {MENU_ENUM_LABEL_DIRECTORY_SETTINGS,          PARSE_ACTION, true},
+#ifdef HAVE_MIST
+               {MENU_ENUM_LABEL_STEAM_SETTINGS,              PARSE_ACTION, true},
+#endif
             };
 
 
@@ -9188,6 +9459,11 @@ unsigned menu_displaylist_build_list(
                   case MENU_ENUM_LABEL_DIRECTORY_SETTINGS:
                      build_list[i].checked = settings->bools.settings_show_directory;
                      break;
+#ifdef HAVE_MIST
+                  case MENU_ENUM_LABEL_STEAM_SETTINGS:
+                     build_list[i].checked = settings->bools.settings_show_steam;
+                     break;
+#endif
                      /* MISSING:
                       * MENU_ENUM_LABEL_BLUETOOTH_SETTINGS
                       * MENU_ENUM_LABEL_WIFI_SETTINGS
@@ -9240,13 +9516,13 @@ unsigned menu_displaylist_build_list(
       case DISPLAYLIST_ONSCREEN_DISPLAY_SETTINGS_LIST:
          {
             menu_displaylist_build_info_t build_list[] = {
+               {MENU_ENUM_LABEL_ONSCREEN_NOTIFICATIONS_SETTINGS, PARSE_ACTION},
 #if defined(HAVE_OVERLAY)
-               {MENU_ENUM_LABEL_ONSCREEN_OVERLAY_SETTINGS, PARSE_ACTION},
+               {MENU_ENUM_LABEL_ONSCREEN_OVERLAY_SETTINGS,       PARSE_ACTION},
 #endif
 #ifdef HAVE_VIDEO_LAYOUT
-               {MENU_ENUM_LABEL_ONSCREEN_VIDEO_LAYOUT_SETTINGS, PARSE_ACTION},
+               {MENU_ENUM_LABEL_ONSCREEN_VIDEO_LAYOUT_SETTINGS,  PARSE_ACTION},
 #endif
-               {MENU_ENUM_LABEL_ONSCREEN_NOTIFICATIONS_SETTINGS,  PARSE_ACTION},
             };
 
             for (i = 0; i < ARRAY_SIZE(build_list); i++)
@@ -9340,6 +9616,9 @@ unsigned menu_displaylist_build_list(
                {MENU_ENUM_LABEL_SETTINGS_SHOW_PLAYLISTS,        PARSE_ONLY_BOOL},
                {MENU_ENUM_LABEL_SETTINGS_SHOW_USER,             PARSE_ONLY_BOOL},
                {MENU_ENUM_LABEL_SETTINGS_SHOW_DIRECTORY,        PARSE_ONLY_BOOL},
+#ifdef HAVE_MIST
+               {MENU_ENUM_LABEL_SETTINGS_SHOW_STEAM,            PARSE_ONLY_BOOL},
+#endif
             };
 
             for (i = 0; i < ARRAY_SIZE(build_list); i++)
@@ -9736,6 +10015,7 @@ unsigned menu_displaylist_build_list(
                {MENU_ENUM_LABEL_MENU_RGUI_PARTICLE_EFFECT_SPEED,              PARSE_ONLY_FLOAT,  false},
                {MENU_ENUM_LABEL_MENU_RGUI_PARTICLE_EFFECT_SCREENSAVER,        PARSE_ONLY_BOOL,   false},
                {MENU_ENUM_LABEL_MENU_XMB_VERTICAL_FADE_FACTOR,                PARSE_ONLY_UINT,   true},
+               {MENU_ENUM_LABEL_MENU_XMB_TITLE_MARGIN,                        PARSE_ONLY_UINT,   true},
                {MENU_ENUM_LABEL_XMB_ALPHA_FACTOR,                             PARSE_ONLY_UINT,   true},
                {MENU_ENUM_LABEL_XMB_FONT,                                     PARSE_ONLY_PATH,   true},
                {MENU_ENUM_LABEL_MENU_FONT_COLOR_RED,                          PARSE_ONLY_UINT,   true},
@@ -12107,6 +12387,29 @@ bool menu_displaylist_ctl(enum menu_displaylist_ctl_state type,
             info->need_push                = true;
          }
          break;
+      case DISPLAYLIST_REMAP_FILE_MANAGER:
+         {
+            /* The number of items in the remap file manager
+             * list will vary depending upon which remap type
+             * is currently active (if any).
+             * To prevent the menu selection from going out
+             * of bounds, we therefore have to check that the
+             * current selection index is less than the current
+             * number of menu entries - if not, we reset the
+             * navigation pointer */
+            size_t selection = menu_navigation_get_selection();
+
+            menu_entries_ctl(MENU_ENTRIES_CTL_CLEAR, info->list);
+            count = menu_displaylist_parse_remap_file_manager_list(info, settings);
+
+            if (selection >= count)
+            {
+               info->need_refresh          = true;
+               info->need_navigation_clear = true;
+            }
+            info->need_push                = true;
+         }
+         break;
       case DISPLAYLIST_ARCHIVE_ACTION:
          menu_entries_ctl(MENU_ENTRIES_CTL_CLEAR, info->list);
 #ifdef HAVE_COMPRESSION
@@ -12322,6 +12625,9 @@ bool menu_displaylist_ctl(enum menu_displaylist_ctl_state type,
       case DISPLAYLIST_INPUT_HAPTIC_FEEDBACK_SETTINGS_LIST:
       case DISPLAYLIST_PLAYLIST_SETTINGS_LIST:
       case DISPLAYLIST_SUBSYSTEM_SETTINGS_LIST:
+#ifdef HAVE_MIST
+      case DISPLAYLIST_STEAM_SETTINGS_LIST:
+#endif
          menu_entries_ctl(MENU_ENTRIES_CTL_CLEAR, info->list);
          count = menu_displaylist_build_list(info->list, settings, type, false);
 
@@ -12464,14 +12770,6 @@ bool menu_displaylist_ctl(enum menu_displaylist_ctl_state type,
                      MENU_SETTING_ACTION, 0, 0))
                count++;
 
-#ifdef HAVE_COMPRESSION
-            if (menu_entries_append_enum(info->list,
-                     msg_hash_to_str(MENU_ENUM_LABEL_VALUE_DOWNLOAD_CORE_SYSTEM_FILES),
-                     msg_hash_to_str(MENU_ENUM_LABEL_DOWNLOAD_CORE_SYSTEM_FILES),
-                     MENU_ENUM_LABEL_DOWNLOAD_CORE_SYSTEM_FILES,
-                     MENU_SETTING_ACTION, 0, 0))
-               count++;
-#endif
             if (menu_entries_append_enum(info->list,
                      msg_hash_to_str(MENU_ENUM_LABEL_VALUE_DOWNLOAD_CORE_CONTENT),
                      msg_hash_to_str(MENU_ENUM_LABEL_DOWNLOAD_CORE_CONTENT_DIRS),
@@ -12911,11 +13209,6 @@ bool menu_displaylist_ctl(enum menu_displaylist_ctl_state type,
                         PARSE_ACTION, false) == 0)
                   count++;
 #endif
-            if (settings->bools.menu_show_help)
-               if (MENU_DISPLAYLIST_PARSE_SETTINGS_ENUM(info->list,
-                     MENU_ENUM_LABEL_HELP_LIST,
-                     PARSE_ACTION, false) == 0)
-                  count++;
 
 /* dont allow restart retroarch, as it doesnt use the supplied cli arguments*/
 //            if (settings->bools.menu_show_restart_retroarch)

@@ -309,6 +309,9 @@ enum settings_list_type
    SETTINGS_LIST_DIRECTORY,
    SETTINGS_LIST_PRIVACY,
    SETTINGS_LIST_MIDI,
+#ifdef HAVE_MIST
+   SETTINGS_LIST_STEAM,
+#endif
    SETTINGS_LIST_MANUAL_CONTENT_SCAN
 };
 
@@ -3929,6 +3932,18 @@ static void setting_get_string_representation_uint_rgui_menu_color_theme(
                   MENU_ENUM_LABEL_VALUE_RGUI_MENU_COLOR_THEME_DYNAMIC),
                len);
          break;
+      case RGUI_THEME_GRAY_DARK:
+         strlcpy(s,
+               msg_hash_to_str(
+                  MENU_ENUM_LABEL_VALUE_RGUI_MENU_COLOR_THEME_GRAY_DARK),
+               len);
+         break;
+      case RGUI_THEME_GRAY_LIGHT:
+         strlcpy(s,
+               msg_hash_to_str(
+                  MENU_ENUM_LABEL_VALUE_RGUI_MENU_COLOR_THEME_GRAY_LIGHT),
+               len);
+         break;
    }
 }
 
@@ -4611,6 +4626,16 @@ static void setting_get_string_representation_uint_materialui_menu_color_theme(
                msg_hash_to_str(
                   MENU_ENUM_LABEL_VALUE_MATERIALUI_MENU_COLOR_THEME_HACKING_THE_KERNEL), len);
          break;
+      case MATERIALUI_THEME_GRAY_DARK:
+         strlcpy(s,
+               msg_hash_to_str(
+                  MENU_ENUM_LABEL_VALUE_MATERIALUI_MENU_COLOR_THEME_GRAY_DARK), len);
+         break;
+      case MATERIALUI_THEME_GRAY_LIGHT:
+         strlcpy(s,
+               msg_hash_to_str(
+                  MENU_ENUM_LABEL_VALUE_MATERIALUI_MENU_COLOR_THEME_GRAY_LIGHT), len);
+         break;
       default:
          break;
    }
@@ -4807,6 +4832,16 @@ static void setting_get_string_representation_uint_ozone_menu_color_theme(
          strlcpy(s,
                msg_hash_to_str(
                   MENU_ENUM_LABEL_VALUE_OZONE_COLOR_THEME_SOLARIZED_LIGHT), len);
+         break;
+      case OZONE_COLOR_THEME_GRAY_DARK:
+         strlcpy(s,
+               msg_hash_to_str(
+                  MENU_ENUM_LABEL_VALUE_OZONE_COLOR_THEME_GRAY_DARK), len);
+         break;
+      case OZONE_COLOR_THEME_GRAY_LIGHT:
+         strlcpy(s,
+               msg_hash_to_str(
+                  MENU_ENUM_LABEL_VALUE_OZONE_COLOR_THEME_GRAY_LIGHT), len);
          break;
       case OZONE_COLOR_THEME_BASIC_WHITE:
       default:
@@ -6711,6 +6746,7 @@ static void setting_get_string_representation_uint_user_language(
    modes[RETRO_LANGUAGE_SWEDISH]                = msg_hash_to_str(MENU_ENUM_LABEL_VALUE_LANG_SWEDISH);
    modes[RETRO_LANGUAGE_UKRAINIAN]              = msg_hash_to_str(MENU_ENUM_LABEL_VALUE_LANG_UKRAINIAN);
    modes[RETRO_LANGUAGE_CZECH]                  = msg_hash_to_str(MENU_ENUM_LABEL_VALUE_LANG_CZECH);
+   modes[RETRO_LANGUAGE_VALENCIAN]              = msg_hash_to_str(MENU_ENUM_LABEL_VALUE_LANG_VALENCIAN);
    strlcpy(s, modes[*msg_hash_get_uint(MSG_HASH_USER_LANGUAGE)], len);
 }
 #endif
@@ -6822,6 +6858,42 @@ static void setting_get_string_representation_uint_menu_screensaver_animation(
                msg_hash_to_str(
                   MENU_ENUM_LABEL_VALUE_MENU_SCREENSAVER_ANIMATION_VORTEX),
                len);
+         break;
+   }
+}
+#endif
+
+#ifdef HAVE_MIST
+static void setting_get_string_representation_steam_rich_presence_format(
+      rarch_setting_t *setting,
+      char *s, size_t len)
+{
+   if (!setting)
+      return;
+
+   switch (*setting->value.target.unsigned_integer)
+   {
+      case STEAM_RICH_PRESENCE_FORMAT_CONTENT:
+         strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_STEAM_RICH_PRESENCE_FORMAT_CONTENT), len);
+         break;
+      case STEAM_RICH_PRESENCE_FORMAT_CORE:
+         strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_STEAM_RICH_PRESENCE_FORMAT_CORE), len);
+         break;
+      case STEAM_RICH_PRESENCE_FORMAT_SYSTEM:
+         strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_STEAM_RICH_PRESENCE_FORMAT_SYSTEM), len);
+         break;
+      case STEAM_RICH_PRESENCE_FORMAT_CONTENT_SYSTEM:
+         strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_STEAM_RICH_PRESENCE_FORMAT_CONTENT_SYSTEM), len);
+         break;
+      case STEAM_RICH_PRESENCE_FORMAT_CONTENT_CORE:
+         strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_STEAM_RICH_PRESENCE_FORMAT_CONTENT_CORE), len);
+         break;
+      case STEAM_RICH_PRESENCE_FORMAT_CONTENT_SYSTEM_CORE:
+         strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_STEAM_RICH_PRESENCE_FORMAT_CONTENT_SYSTEM_CORE), len);
+         break;
+      case STEAM_RICH_PRESENCE_FORMAT_NONE:
+      default:
+         strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_NONE), len);
          break;
    }
 }
@@ -7751,6 +7823,12 @@ static void general_write_handler(rarch_setting_t *setting)
                   *setting->value.target.fraction);
          }
          break;
+#ifdef HAVE_CHEEVOS
+      case MENU_ENUM_LABEL_VIDEO_FRAME_DELAY:
+      case MENU_ENUM_LABEL_VIDEO_FRAME_DELAY_AUTO:
+         rcheevos_validate_config_settings();
+         break;
+#endif
       case MENU_ENUM_LABEL_VIDEO_REFRESH_RATE_AUTO:
          driver_ctl(RARCH_DRIVER_CTL_SET_REFRESH_RATE, setting->value.target.fraction);
 
@@ -8618,7 +8696,6 @@ static bool setting_append_list_input_player_options(
        */
       /* FIXME/TODO - really need to clean up this mess in some way. */
       static char key[MAX_USERS][64];
-      static char key_type[MAX_USERS][64];
       static char key_analog[MAX_USERS][64];
       static char key_bind_all[MAX_USERS][64];
       static char key_bind_all_save_autoconfig[MAX_USERS][64];
@@ -8628,7 +8705,6 @@ static bool setting_append_list_input_player_options(
       static char mouse_index[MAX_USERS][64];
 
       static char label[MAX_USERS][64];
-      static char label_type[MAX_USERS][64];
       static char label_analog[MAX_USERS][64];
       static char label_bind_all[MAX_USERS][64];
       static char label_bind_all_save_autoconfig[MAX_USERS][64];
@@ -8641,9 +8717,6 @@ static bool setting_append_list_input_player_options(
 
       fill_pathname_join_delim(key[user], tmp_string, "joypad_index", '_',
             sizeof(key[user]));
-      snprintf(key_type[user], sizeof(key_type[user]),
-               msg_hash_to_str(MENU_ENUM_LABEL_INPUT_LIBRETRO_DEVICE),
-               user + 1);
       snprintf(key_analog[user], sizeof(key_analog[user]),
                msg_hash_to_str(MENU_ENUM_LABEL_INPUT_PLAYER_ANALOG_DPAD_MODE),
                user + 1);
@@ -8668,9 +8741,6 @@ static bool setting_append_list_input_player_options(
       snprintf(label[user], sizeof(label[user]),
                "%s",
                msg_hash_to_str(MENU_ENUM_LABEL_VALUE_INPUT_DEVICE_INDEX));
-      snprintf(label_type[user], sizeof(label_type[user]),
-               "%s",
-               msg_hash_to_str(MENU_ENUM_LABEL_VALUE_INPUT_DEVICE_TYPE));
       snprintf(label_analog[user], sizeof(label_analog[user]),
                "%s",
                msg_hash_to_str(MENU_ENUM_LABEL_VALUE_INPUT_ADC_TYPE));
@@ -8686,29 +8756,6 @@ static bool setting_append_list_input_player_options(
       snprintf(label_mouse_index[user], sizeof(label_mouse_index[user]),
                "%s",
                msg_hash_to_str(MENU_ENUM_LABEL_VALUE_INPUT_MOUSE_INDEX));
-
-      CONFIG_UINT_ALT(
-            list, list_info,
-            input_config_get_device_ptr(user),
-            key_type[user],
-            label_type[user],
-            user,
-            &group_info,
-            &subgroup_info,
-            parent_group,
-            general_write_handler,
-            general_read_handler);
-      (*list)[list_info->index - 1].index         = user + 1;
-      (*list)[list_info->index - 1].index_offset  = user;
-      (*list)[list_info->index - 1].action_left   = &setting_action_left_libretro_device_type;
-      (*list)[list_info->index - 1].action_right  = &setting_action_right_libretro_device_type;
-      (*list)[list_info->index - 1].action_select = &setting_action_right_libretro_device_type;
-      (*list)[list_info->index - 1].action_start  = &setting_action_start_libretro_device_type;
-      (*list)[list_info->index - 1].action_ok     = &setting_action_ok_libretro_device_type;
-      (*list)[list_info->index - 1].get_string_representation =
-         &setting_get_string_representation_uint_libretro_device;
-      MENU_SETTINGS_LIST_CURRENT_ADD_ENUM_IDX_PTR(list, list_info,
-            (enum msg_hash_enums)(MENU_ENUM_LABEL_INPUT_LIBRETRO_DEVICE + user));
 
       CONFIG_UINT_ALT(
             list, list_info,
@@ -8895,6 +8942,71 @@ static bool setting_append_list_input_player_options(
             &subgroup_info,
             parent_group);
       (*list)[list_info->index - 1].bind_type = i + MENU_SETTINGS_BIND_BEGIN;
+   }
+
+   END_SUB_GROUP(list, list_info, parent_group);
+   END_GROUP(list, list_info, parent_group);
+
+   return true;
+}
+
+static bool setting_append_list_input_libretro_device_options(
+      rarch_setting_t **list,
+      rarch_setting_info_t *list_info,
+      const char *parent_group)
+{
+   rarch_setting_group_info_t group_info;
+   rarch_setting_group_info_t subgroup_info;
+   static char key_device_type[MAX_USERS][64];
+   static char label_device_type[MAX_USERS][64];
+   unsigned user;
+
+   group_info.name    = NULL;
+   subgroup_info.name = NULL;
+
+   START_GROUP(list, list_info, &group_info,
+         "Libretro Device Type", parent_group);
+
+   parent_group = msg_hash_to_str(MENU_ENUM_LABEL_SETTINGS);
+
+   START_SUB_GROUP(list, list_info, "State", &group_info,
+         &subgroup_info, parent_group);
+
+   for (user = 0; user < MAX_USERS; user++)
+   {
+      key_device_type[user][0]   = '\0';
+      label_device_type[user][0] = '\0';
+
+      snprintf(key_device_type[user], sizeof(key_device_type[user]),
+            msg_hash_to_str(MENU_ENUM_LABEL_INPUT_LIBRETRO_DEVICE),
+            user + 1);
+
+      snprintf(label_device_type[user], sizeof(label_device_type[user]),
+            "%s",
+            msg_hash_to_str(MENU_ENUM_LABEL_VALUE_INPUT_DEVICE_TYPE));
+
+      CONFIG_UINT_ALT(
+            list, list_info,
+            input_config_get_device_ptr(user),
+            key_device_type[user],
+            label_device_type[user],
+            user,
+            &group_info,
+            &subgroup_info,
+            parent_group,
+            general_write_handler,
+            general_read_handler);
+      (*list)[list_info->index - 1].index         = user + 1;
+      (*list)[list_info->index - 1].index_offset  = user;
+      (*list)[list_info->index - 1].action_left   = &setting_action_left_libretro_device_type;
+      (*list)[list_info->index - 1].action_right  = &setting_action_right_libretro_device_type;
+      (*list)[list_info->index - 1].action_select = &setting_action_right_libretro_device_type;
+      (*list)[list_info->index - 1].action_start  = &setting_action_start_libretro_device_type;
+      (*list)[list_info->index - 1].action_ok     = &setting_action_ok_libretro_device_type;
+      (*list)[list_info->index - 1].get_string_representation =
+            &setting_get_string_representation_uint_libretro_device;
+      MENU_SETTINGS_LIST_CURRENT_ADD_ENUM_IDX_PTR(list, list_info,
+            (enum msg_hash_enums)(MENU_ENUM_LABEL_INPUT_LIBRETRO_DEVICE + user));
    }
 
    END_SUB_GROUP(list, list_info, parent_group);
@@ -9492,7 +9604,6 @@ static bool setting_append_list(
                &group_info,
                &subgroup_info,
                parent_group);
-         SETTINGS_DATA_LIST_CURRENT_ADD_FLAGS(list, list_info, SD_FLAG_ADVANCED);
 
          CONFIG_ACTION(
                list, list_info,
@@ -9822,6 +9933,16 @@ static bool setting_append_list(
                &subgroup_info,
                parent_group);
 
+#ifdef HAVE_MIST
+         CONFIG_ACTION(
+               list, list_info,
+               MENU_ENUM_LABEL_STEAM_SETTINGS,
+               MENU_ENUM_LABEL_VALUE_STEAM_SETTINGS,
+               &group_info,
+               &subgroup_info,
+               parent_group);
+#endif
+
          if (string_is_not_equal(settings->arrays.midi_driver, "null"))
          {
             CONFIG_ACTION(
@@ -9837,6 +9958,7 @@ static bool setting_append_list(
          for (user = 0; user < MAX_USERS; user++)
             setting_append_list_input_player_options(list, list_info, parent_group, user);
 
+         setting_append_list_input_libretro_device_options(list, list_info, parent_group);
          setting_append_list_input_remap_port_options(list, list_info, parent_group);
 
          END_SUB_GROUP(list, list_info, parent_group);
@@ -10004,8 +10126,6 @@ static bool setting_append_list(
                   msg_hash_to_str(MENU_ENUM_LABEL_VALUE_CORE_SETTINGS), parent_group);
             MENU_SETTINGS_LIST_CURRENT_ADD_ENUM_IDX_PTR(list, list_info, MENU_ENUM_LABEL_CORE_SETTINGS);
 
-            SETTINGS_DATA_LIST_CURRENT_ADD_FLAGS(list, list_info, SD_FLAG_ADVANCED);
-
             parent_group = msg_hash_to_str(MENU_ENUM_LABEL_SETTINGS);
 
             START_SUB_GROUP(list, list_info, "State", &group_info, &subgroup_info,
@@ -10064,7 +10184,7 @@ static bool setting_append_list(
             bool_entries[listing].name_enum_idx  = MENU_ENUM_LABEL_CORE_INFO_CACHE_ENABLE;
             bool_entries[listing].SHORT_enum_idx = MENU_ENUM_LABEL_VALUE_CORE_INFO_CACHE_ENABLE;
             bool_entries[listing].default_value  = DEFAULT_CORE_INFO_CACHE_ENABLE;
-            bool_entries[listing].flags          = SD_FLAG_NONE;
+            bool_entries[listing].flags          = SD_FLAG_ADVANCED;
             listing++;
 
 #ifndef HAVE_DYNAMIC
@@ -11830,6 +11950,22 @@ static bool setting_append_list(
             MENU_SETTINGS_LIST_CURRENT_ADD_CMD(list, list_info, CMD_EVENT_REINIT);
 
 #if defined(_WIN32) && !defined(_XBOX) && !defined(__WINRT__)
+         CONFIG_BOOL(
+               list, list_info,
+               &settings->bools.ui_menubar_enable,
+               MENU_ENUM_LABEL_UI_MENUBAR_ENABLE,
+               MENU_ENUM_LABEL_VALUE_UI_MENUBAR_ENABLE,
+               DEFAULT_UI_MENUBAR_ENABLE,
+               MENU_ENUM_LABEL_VALUE_OFF,
+               MENU_ENUM_LABEL_VALUE_ON,
+               &group_info,
+               &subgroup_info,
+               parent_group,
+               general_write_handler,
+               general_read_handler,
+               SD_FLAG_NONE);
+         MENU_SETTINGS_LIST_CURRENT_ADD_CMD(list, list_info, CMD_EVENT_REINIT);
+
             CONFIG_BOOL(
                   list, list_info,
                   &settings->bools.video_window_save_positions,
@@ -16139,6 +16275,20 @@ static bool setting_append_list(
             menu_settings_list_current_add_range(list, list_info, 0, 500, 1, true, true);
             SETTINGS_DATA_LIST_CURRENT_ADD_FLAGS(list, list_info, SD_FLAG_LAKKA_ADVANCED);
 
+            CONFIG_UINT(
+                  list, list_info,
+                  &settings->uints.menu_xmb_title_margin,
+                  MENU_ENUM_LABEL_MENU_XMB_TITLE_MARGIN,
+                  MENU_ENUM_LABEL_VALUE_MENU_XMB_TITLE_MARGIN,
+                  DEFAULT_XMB_TITLE_MARGIN,
+                  &group_info,
+                  &subgroup_info,
+                  parent_group,
+                  general_write_handler,
+                  general_read_handler);
+            (*list)[list_info->index - 1].action_ok = &setting_action_ok_uint;
+            menu_settings_list_current_add_range(list, list_info, 0, 12, 1, true, true);
+
             CONFIG_PATH(
                   list, list_info,
                   settings->paths.path_menu_xmb_font,
@@ -18246,6 +18396,23 @@ static bool setting_append_list(
                general_read_handler,
                SD_FLAG_NONE);
 
+#ifdef HAVE_MIST
+         CONFIG_BOOL(
+               list, list_info,
+               &settings->bools.settings_show_steam,
+               MENU_ENUM_LABEL_SETTINGS_SHOW_STEAM,
+               MENU_ENUM_LABEL_VALUE_SETTINGS_SHOW_STEAM,
+               DEFAULT_SETTINGS_SHOW_STEAM,
+               MENU_ENUM_LABEL_VALUE_OFF,
+               MENU_ENUM_LABEL_VALUE_ON,
+               &group_info,
+               &subgroup_info,
+               parent_group,
+               general_write_handler,
+               general_read_handler,
+               SD_FLAG_NONE);
+#endif
+
          CONFIG_BOOL(
                list, list_info,
                &settings->bools.quick_menu_show_take_screenshot,
@@ -18645,21 +18812,6 @@ static bool setting_append_list(
                general_read_handler,
                SD_FLAG_ADVANCED);
 
-         CONFIG_BOOL(
-               list, list_info,
-               &settings->bools.ui_menubar_enable,
-               MENU_ENUM_LABEL_UI_MENUBAR_ENABLE,
-               MENU_ENUM_LABEL_VALUE_UI_MENUBAR_ENABLE,
-               DEFAULT_UI_MENUBAR_ENABLE,
-               MENU_ENUM_LABEL_VALUE_OFF,
-               MENU_ENUM_LABEL_VALUE_ON,
-               &group_info,
-               &subgroup_info,
-               parent_group,
-               general_write_handler,
-               general_read_handler,
-               SD_FLAG_NONE);
-         MENU_SETTINGS_LIST_CURRENT_ADD_CMD(list, list_info, CMD_EVENT_REINIT);
 
 #ifdef HAVE_QT
          CONFIG_BOOL(
@@ -21040,6 +21192,55 @@ static bool setting_append_list(
          END_SUB_GROUP(list, list_info, parent_group);
          END_GROUP(list, list_info, parent_group);
          break;
+#ifdef HAVE_MIST
+     case SETTINGS_LIST_STEAM:
+         START_GROUP(list, list_info, &group_info,
+               msg_hash_to_str(MENU_ENUM_LABEL_VALUE_STEAM_SETTINGS), parent_group);
+
+         parent_group = msg_hash_to_str(MENU_ENUM_LABEL_VALUE_STEAM_SETTINGS);
+
+         START_SUB_GROUP(list, list_info, "State",
+               &group_info, &subgroup_info, parent_group);
+
+         CONFIG_BOOL(
+               list, list_info,
+               &settings->bools.steam_rich_presence_enable,
+               MENU_ENUM_LABEL_STEAM_RICH_PRESENCE_ENABLE,
+               MENU_ENUM_LABEL_VALUE_STEAM_RICH_PRESENCE_ENABLE,
+               false,
+               MENU_ENUM_LABEL_VALUE_OFF,
+               MENU_ENUM_LABEL_VALUE_ON,
+               &group_info,
+               &subgroup_info,
+               parent_group,
+               general_write_handler,
+               general_read_handler,
+               SD_FLAG_NONE);
+         (*list)[list_info->index - 1].action_ok     = &setting_bool_action_left_with_refresh;
+         (*list)[list_info->index - 1].action_left   = &setting_bool_action_left_with_refresh;
+         (*list)[list_info->index - 1].action_right  = &setting_bool_action_right_with_refresh;
+
+         CONFIG_UINT(
+               list, list_info,
+               &settings->uints.steam_rich_presence_format,
+               MENU_ENUM_LABEL_STEAM_RICH_PRESENCE_FORMAT,
+               MENU_ENUM_LABEL_VALUE_STEAM_RICH_PRESENCE_FORMAT,
+               DEFAULT_STEAM_RICH_PRESENCE_FORMAT,
+               &group_info,
+               &subgroup_info,
+               parent_group,
+               general_write_handler,
+               general_read_handler);
+         (*list)[list_info->index - 1].ui_type   = ST_UI_TYPE_UINT_COMBOBOX;
+         (*list)[list_info->index - 1].action_ok = &setting_action_ok_uint;
+         (*list)[list_info->index - 1].get_string_representation =
+            &setting_get_string_representation_steam_rich_presence_format;
+         menu_settings_list_current_add_range(list, list_info, 0, (STEAM_RICH_PRESENCE_FORMAT_LAST-1), 1, true, true);
+
+         END_SUB_GROUP(list, list_info, parent_group);
+         END_GROUP(list, list_info, parent_group);
+         break;
+#endif
       case SETTINGS_LIST_NONE:
       default:
          break;
@@ -21188,6 +21389,9 @@ static rarch_setting_t *menu_setting_new_internal(rarch_setting_info_t *list_inf
       SETTINGS_LIST_DIRECTORY,
       SETTINGS_LIST_PRIVACY,
       SETTINGS_LIST_MIDI,
+#ifdef HAVE_MIST
+      SETTINGS_LIST_STEAM,
+#endif
       SETTINGS_LIST_MANUAL_CONTENT_SCAN
    };
    settings_t *settings                 = config_get_ptr();

@@ -156,8 +156,7 @@ typedef struct settings
       unsigned input_joypad_index[MAX_USERS];
       unsigned input_device[MAX_USERS];
       unsigned input_mouse_index[MAX_USERS];
-      /* Set by autoconfiguration in joypad_autoconfig_dir.
-       * Does not override main binds. */
+
       unsigned input_libretro_device[MAX_USERS];
       unsigned input_analog_dpad_mode[MAX_USERS];
 
@@ -279,6 +278,7 @@ typedef struct settings
       unsigned menu_xmb_color_theme;
       unsigned menu_xmb_thumbnail_scale_factor;
       unsigned menu_xmb_vertical_fade_factor;
+      unsigned menu_xmb_title_margin;
       unsigned menu_materialui_color_theme;
       unsigned menu_materialui_transition_animation;
       unsigned menu_materialui_thumbnail_view_portrait;
@@ -338,6 +338,10 @@ typedef struct settings
       unsigned cpu_scaling_mode;
       unsigned cpu_min_freq;
       unsigned cpu_max_freq;
+#endif
+
+#ifdef HAVE_MIST
+      unsigned steam_rich_presence_format;
 #endif
    } uints;
 
@@ -740,6 +744,9 @@ typedef struct settings
       bool settings_show_playlists;
       bool settings_show_user;
       bool settings_show_directory;
+#ifdef HAVE_MIST
+      bool settings_show_steam;
+#endif
       bool quick_menu_show_resume_content;
       bool quick_menu_show_restart_content;
       bool quick_menu_show_close_content;
@@ -831,6 +838,11 @@ typedef struct settings
 
       /* Driver */
       bool driver_switch_enable;
+
+#ifdef HAVE_MIST
+      /* Steam */
+      bool steam_rich_presence_enable;
+#endif
 
       /* Misc. */
       bool discord_enable;

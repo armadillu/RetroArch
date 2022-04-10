@@ -489,11 +489,15 @@ static enum msg_hash_enums action_ok_dl_to_enum(unsigned lbl)
       case ACTION_OK_DL_CORE_MANAGER_LIST:
          return MENU_ENUM_LABEL_DEFERRED_CORE_MANAGER_LIST;
 #ifdef HAVE_MIST
+      case ACTION_OK_DL_STEAM_SETTINGS_LIST:
+         return MENU_ENUM_LABEL_DEFERRED_STEAM_SETTINGS_LIST;
       case ACTION_OK_DL_CORE_MANAGER_STEAM_LIST:
          return MENU_ENUM_LABEL_DEFERRED_CORE_MANAGER_STEAM_LIST;
 #endif
       case ACTION_OK_DL_CORE_OPTION_OVERRIDE_LIST:
          return MENU_ENUM_LABEL_DEFERRED_CORE_OPTION_OVERRIDE_LIST;
+      case ACTION_OK_DL_REMAP_FILE_MANAGER_LIST:
+         return MENU_ENUM_LABEL_DEFERRED_REMAP_FILE_MANAGER_LIST;
       default:
          break;
    }
@@ -1581,9 +1585,11 @@ int generic_action_ok_displaylist_push(const char *path,
       case ACTION_OK_DL_MANUAL_CONTENT_SCAN_LIST:
       case ACTION_OK_DL_CORE_MANAGER_LIST:
 #ifdef HAVE_MIST
+      case ACTION_OK_DL_STEAM_SETTINGS_LIST:
       case ACTION_OK_DL_CORE_MANAGER_STEAM_LIST:
 #endif
       case ACTION_OK_DL_CORE_OPTION_OVERRIDE_LIST:
+      case ACTION_OK_DL_REMAP_FILE_MANAGER_LIST:
          ACTION_OK_DL_LBL(action_ok_dl_to_enum(action_type), DISPLAYLIST_GENERIC);
          break;
       case ACTION_OK_DL_CDROM_INFO_DETAIL_LIST:
@@ -2226,7 +2232,7 @@ DEFAULT_ACTION_OK_SET(action_ok_cheat_file_load,      ACTION_OK_LOAD_CHEAT_FILE,
 DEFAULT_ACTION_OK_SET(action_ok_cheat_file_load_append,      ACTION_OK_LOAD_CHEAT_FILE_APPEND,       MENU_ENUM_LABEL_CORE_CHEAT_OPTIONS)
 DEFAULT_ACTION_OK_SET(action_ok_record_configfile_load,      ACTION_OK_LOAD_RECORD_CONFIGFILE,       MENU_ENUM_LABEL_RECORDING_SETTINGS)
 DEFAULT_ACTION_OK_SET(action_ok_stream_configfile_load,      ACTION_OK_LOAD_STREAM_CONFIGFILE,       MENU_ENUM_LABEL_RECORDING_SETTINGS)
-DEFAULT_ACTION_OK_SET(action_ok_remap_file_load,      ACTION_OK_LOAD_REMAPPING_FILE,   MENU_ENUM_LABEL_CORE_INPUT_REMAPPING_OPTIONS    )
+DEFAULT_ACTION_OK_SET(action_ok_remap_file_load,      ACTION_OK_LOAD_REMAPPING_FILE,   MENU_ENUM_LABEL_DEFERRED_REMAP_FILE_MANAGER_LIST)
 #if defined(HAVE_CG) || defined(HAVE_GLSL) || defined(HAVE_SLANG) || defined(HAVE_HLSL)
 DEFAULT_ACTION_OK_SET(action_ok_shader_preset_load,   ACTION_OK_LOAD_PRESET   ,        MENU_ENUM_LABEL_SHADER_OPTIONS)
 DEFAULT_ACTION_OK_SET(action_ok_shader_pass_load,     ACTION_OK_LOAD_SHADER_PASS,      MENU_ENUM_LABEL_SHADER_OPTIONS)
@@ -3420,63 +3426,63 @@ static int generic_action_ok_remap_file_operation(const char *path,
       unsigned action_type)
 {
 #ifdef HAVE_CONFIGFILE
-   char directory[PATH_MAX_LENGTH];
-   char file[PATH_MAX_LENGTH];
-   char content_dir[PATH_MAX_LENGTH];
-   struct retro_system_info *system     = &runloop_state_get_ptr()->system.info;
-   const char *core_name                = system ? system->library_name : NULL;
-   const char *rarch_path_basename      = path_get(RARCH_PATH_BASENAME);
-   bool has_content                     = !string_is_empty(rarch_path_basename);
-   settings_t *settings                 = config_get_ptr();
-   const char *path_dir_input_remapping = settings->paths.directory_input_remapping;
+   char content_dir_name[PATH_MAX_LENGTH];
+   char remap_file_path[PATH_MAX_LENGTH];
+   rarch_system_info_t *system           = &runloop_state_get_ptr()->system;
+   const char *core_name                 = system ? system->info.library_name : NULL;
+   const char *rarch_path_basename       = path_get(RARCH_PATH_BASENAME);
+   bool has_content                      = !string_is_empty(rarch_path_basename);
+   settings_t *settings                  = config_get_ptr();
+   const char *directory_input_remapping = settings->paths.directory_input_remapping;
+   bool refresh                          = false;
 
-   directory[0]   = '\0';
-   file[0]        = '\0';
-   content_dir[0] = '\0';
+   content_dir_name[0] = '\0';
+   remap_file_path[0]  = '\0';
 
    /* Cannot perform remap file operation if we
     * have no core */
    if (string_is_empty(core_name))
       return menu_cbs_exit();
 
-   /* Get base remap file directory */
-   fill_pathname_join(
-         directory,
-         path_dir_input_remapping,
-         core_name,
-         sizeof(directory));
-
-   if (!path_is_directory(directory))
-      path_mkdir(directory);
-
    switch (action_type)
    {
       case ACTION_OK_REMAP_FILE_SAVE_CORE:
       case ACTION_OK_REMAP_FILE_REMOVE_CORE:
-         fill_pathname_join(file, core_name, core_name, sizeof(file));
+         fill_pathname_join_special_ext(remap_file_path,
+               directory_input_remapping, core_name,
+               core_name,
+               FILE_PATH_REMAP_EXTENSION,
+               sizeof(remap_file_path));
          break;
       case ACTION_OK_REMAP_FILE_SAVE_GAME:
       case ACTION_OK_REMAP_FILE_REMOVE_GAME:
          if (has_content)
-            fill_pathname_join(file, core_name,
-                  path_basename(rarch_path_basename), sizeof(file));
+            fill_pathname_join_special_ext(remap_file_path,
+                  directory_input_remapping, core_name,
+                  path_basename(rarch_path_basename),
+                  FILE_PATH_REMAP_EXTENSION,
+                  sizeof(remap_file_path));
          break;
       case ACTION_OK_REMAP_FILE_SAVE_CONTENT_DIR:
       case ACTION_OK_REMAP_FILE_REMOVE_CONTENT_DIR:
          if (has_content)
          {
-            fill_pathname_parent_dir_name(content_dir,
-                  rarch_path_basename, sizeof(content_dir));
-            fill_pathname_join(file, core_name,
-                  content_dir, sizeof(file));
+            fill_pathname_parent_dir_name(content_dir_name,
+                  rarch_path_basename, sizeof(content_dir_name));
+
+            fill_pathname_join_special_ext(remap_file_path,
+                  directory_input_remapping, core_name,
+                  content_dir_name,
+                  FILE_PATH_REMAP_EXTENSION,
+                  sizeof(remap_file_path));
          }
          break;
    }
 
    if (action_type < ACTION_OK_REMAP_FILE_REMOVE_CORE)
    {
-      if (!string_is_empty(file) &&
-          input_remapping_save_file(file))
+      if (!string_is_empty(remap_file_path) &&
+          input_remapping_save_file(remap_file_path))
       {
          switch (action_type)
          {
@@ -3504,29 +3510,29 @@ static int generic_action_ok_remap_file_operation(const char *path,
    }
    else
    {
-      if (!string_is_empty(file) &&
-          input_remapping_remove_file(file, path_dir_input_remapping))
+      if (!string_is_empty(remap_file_path) &&
+          (filestream_delete(remap_file_path) == 0))
       {
          switch (action_type)
          {
             case ACTION_OK_REMAP_FILE_REMOVE_CORE:
                if (retroarch_ctl(RARCH_CTL_IS_REMAPS_CORE_ACTIVE, NULL))
                {
-                  input_remapping_deinit();
+                  input_remapping_deinit(false);
                   input_remapping_set_defaults(false);
                }
                break;
             case ACTION_OK_REMAP_FILE_REMOVE_GAME:
                if (retroarch_ctl(RARCH_CTL_IS_REMAPS_GAME_ACTIVE, NULL))
                {
-                  input_remapping_deinit();
+                  input_remapping_deinit(false);
                   input_remapping_set_defaults(false);
                }
                break;
             case ACTION_OK_REMAP_FILE_REMOVE_CONTENT_DIR:
                if (retroarch_ctl(RARCH_CTL_IS_REMAPS_CONTENT_DIR_ACTIVE, NULL))
                {
-                  input_remapping_deinit();
+                  input_remapping_deinit(false);
                   input_remapping_set_defaults(false);
                }
                break;
@@ -3536,6 +3542,11 @@ static int generic_action_ok_remap_file_operation(const char *path,
                msg_hash_to_str(MSG_REMAP_FILE_REMOVED_SUCCESSFULLY),
                1, 100, true,
                NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
+
+         /* After removing a remap file, attempt to
+          * load any remaining remap file with the
+          * next highest priority */
+         config_load_remap(directory_input_remapping, system);
       }
       else
          runloop_msg_queue_push(
@@ -3543,6 +3554,10 @@ static int generic_action_ok_remap_file_operation(const char *path,
                1, 100, true,
                NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
    }
+
+   /* Refresh menu */
+   menu_entries_ctl(MENU_ENTRIES_CTL_SET_REFRESH, &refresh);
+   menu_driver_ctl(RARCH_MENU_CTL_SET_PREVENT_POPULATE, NULL);
 #endif
    return 0;
 }
@@ -3587,6 +3602,17 @@ static int action_ok_remap_file_remove_game(const char *path,
 {
    return generic_action_ok_remap_file_operation(path, label, type,
          idx, entry_idx, ACTION_OK_REMAP_FILE_REMOVE_GAME);
+}
+
+static int action_ok_remap_file_reset(const char *path,
+      const char *label, unsigned type, size_t idx, size_t entry_idx)
+{
+   input_remapping_set_defaults(false);
+   runloop_msg_queue_push(
+         msg_hash_to_str(MSG_REMAP_FILE_RESET),
+         1, 100, true,
+         NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
+   return 0;
 }
 
 int action_ok_path_use_directory(const char *path,
@@ -5806,9 +5832,11 @@ DEFAULT_ACTION_OK_FUNC(action_ok_push_manual_content_scan_list, ACTION_OK_DL_MAN
 DEFAULT_ACTION_OK_FUNC(action_ok_manual_content_scan_dat_file, ACTION_OK_DL_MANUAL_CONTENT_SCAN_DAT_FILE)
 DEFAULT_ACTION_OK_FUNC(action_ok_push_core_manager_list, ACTION_OK_DL_CORE_MANAGER_LIST)
 #ifdef HAVE_MIST
+DEFAULT_ACTION_OK_FUNC(action_ok_steam_settings_list, ACTION_OK_DL_STEAM_SETTINGS_LIST)
 DEFAULT_ACTION_OK_FUNC(action_ok_push_core_manager_steam_list, ACTION_OK_DL_CORE_MANAGER_STEAM_LIST)
 #endif
 DEFAULT_ACTION_OK_FUNC(action_ok_push_core_option_override_list, ACTION_OK_DL_CORE_OPTION_OVERRIDE_LIST)
+DEFAULT_ACTION_OK_FUNC(action_ok_push_remap_file_manager_list, ACTION_OK_DL_REMAP_FILE_MANAGER_LIST)
 DEFAULT_ACTION_OK_FUNC(action_ok_push_core_options_list, ACTION_OK_DL_CORE_OPTIONS_LIST)
 
 static int action_ok_open_uwp_permission_settings(const char *path,
@@ -5913,7 +5941,7 @@ static void netplay_refresh_rooms_cb(retro_task_t *task,
    unsigned menu_type           = 0;
    enum msg_hash_enums enum_idx = MSG_UNKNOWN;
    net_driver_state_t *net_st   = networking_state_get_ptr();
-   http_transfer_data_t *data   = task_data;
+   http_transfer_data_t *data   = (http_transfer_data_t*)task_data;
    bool refresh                 = false;
 
    menu_entries_get_last_stack(&path, &label, &menu_type, &enum_idx, NULL);
@@ -5937,7 +5965,7 @@ static void netplay_refresh_rooms_cb(retro_task_t *task,
       return;
    }
 
-   new_data = realloc(data->data, data->len + 1);
+   new_data              = (char*)realloc(data->data, data->len + 1);
    if (!new_data)
       return;
    data->data            = new_data;
@@ -5956,7 +5984,7 @@ static void netplay_refresh_rooms_cb(retro_task_t *task,
       netplay_rooms_parse(data->data);
 
       net_st->room_count = netplay_rooms_get_count();
-      net_st->room_list  = calloc(net_st->room_count,
+      net_st->room_list  = (struct netplay_room*)calloc(net_st->room_count,
          sizeof(*net_st->room_list));
 
       for (i = 0; i < net_st->room_count; i++)
@@ -6019,7 +6047,7 @@ static void netplay_refresh_lan_cb(retro_task_t *task,
       int i;
 
       net_st->room_count = hosts->size;
-      net_st->room_list  = calloc(net_st->room_count,
+      net_st->room_list  = (struct netplay_room*)calloc(net_st->room_count,
          sizeof(*net_st->room_list));
 
       for (i = 0; i < net_st->room_count; i++)
@@ -8138,6 +8166,7 @@ static int menu_cbs_init_bind_ok_compare_label(menu_file_list_cbs_t *cbs,
          {MENU_ENUM_LABEL_SHADER_OPTIONS,                      action_ok_push_default},
          {MENU_ENUM_LABEL_CORE_OPTIONS,                        action_ok_push_core_options_list},
          {MENU_ENUM_LABEL_CORE_OPTION_OVERRIDE_LIST,           action_ok_push_core_option_override_list},
+         {MENU_ENUM_LABEL_REMAP_FILE_MANAGER_LIST,             action_ok_push_remap_file_manager_list},
          {MENU_ENUM_LABEL_CORE_CHEAT_OPTIONS,                  action_ok_push_default},
          {MENU_ENUM_LABEL_CORE_INPUT_REMAPPING_OPTIONS,        action_ok_push_default},
          {MENU_ENUM_LABEL_DISC_INFORMATION,                    action_ok_push_default},
@@ -8180,6 +8209,7 @@ static int menu_cbs_init_bind_ok_compare_label(menu_file_list_cbs_t *cbs,
          {MENU_ENUM_LABEL_REMAP_FILE_REMOVE_CORE,              action_ok_remap_file_remove_core},
          {MENU_ENUM_LABEL_REMAP_FILE_REMOVE_CONTENT_DIR,       action_ok_remap_file_remove_content_dir},
          {MENU_ENUM_LABEL_REMAP_FILE_REMOVE_GAME,              action_ok_remap_file_remove_game},
+         {MENU_ENUM_LABEL_REMAP_FILE_RESET,                    action_ok_remap_file_reset},
          {MENU_ENUM_LABEL_PLAYLISTS_TAB,                       action_ok_content_collection_list},
          {MENU_ENUM_LABEL_BROWSE_URL_LIST,                     action_ok_browse_url_list},
          {MENU_ENUM_LABEL_CORE_LIST,                           action_ok_core_list},
@@ -8236,6 +8266,7 @@ static int menu_cbs_init_bind_ok_compare_label(menu_file_list_cbs_t *cbs,
          {MENU_ENUM_LABEL_PLAYLIST_MANAGER_DEFAULT_CORE,       action_ok_playlist_default_core},
          {MENU_ENUM_LABEL_CORE_MANAGER_LIST,                   action_ok_push_core_manager_list},
 #ifdef HAVE_MIST
+         {MENU_ENUM_LABEL_STEAM_SETTINGS,                      action_ok_steam_settings_list},
          {MENU_ENUM_LABEL_CORE_MANAGER_STEAM_LIST,             action_ok_push_core_manager_steam_list},
          {MENU_ENUM_LABEL_CORE_STEAM_INSTALL,                  action_ok_core_steam_install},
          {MENU_ENUM_LABEL_CORE_STEAM_UNINSTALL,                action_ok_core_steam_uninstall},

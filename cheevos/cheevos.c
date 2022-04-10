@@ -87,6 +87,7 @@ static rcheevos_locals_t rcheevos_locals =
 #ifdef HAVE_THREADS
    CMD_EVENT_NONE, /* queued_command */
 #endif
+   "",   /* displayname */
    "",   /* username */
    "",   /* token */
    "",   /* user_agent_prefix */
@@ -956,9 +957,20 @@ void rcheevos_validate_config_settings(void)
    core_option_manager_t* coreopts  = NULL;
    struct retro_system_info *system = 
       &runloop_state_get_ptr()->system.info;
+   const settings_t* settings = config_get_ptr();
 
    if (!system->library_name || !rcheevos_locals.hardcore_active)
       return;
+
+   if (!settings->bools.video_frame_delay_auto && settings->uints.video_frame_delay != 0) {
+      const char* error = "Hardcore paused. Manual video frame delay setting not allowed.";
+      CHEEVOS_LOG(RCHEEVOS_TAG "%s\n", error);
+      rcheevos_pause_hardcore();
+
+      runloop_msg_queue_push(error, 0, 4 * 60, false, NULL,
+         MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_WARNING);
+      return;
+   }
 
    if (!(disallowed_settings 
             = rc_libretro_get_disallowed_settings(system->library_name)))
@@ -1404,7 +1416,7 @@ void rcheevos_show_mastery_placard()
       char msg[128];
       size_t len;
 
-      len = snprintf(msg, sizeof(msg), "%s", rcheevos_locals.username);
+      len = snprintf(msg, sizeof(msg), "%s", rcheevos_locals.displayname);
 
       if (len < sizeof(msg) - 12 &&
          (content_runtime_log || content_runtime_log_aggr))
@@ -1830,7 +1842,7 @@ static void rcheevos_login_callback(void* userdata)
          char msg[256];
          snprintf(msg, sizeof(msg),
             "RetroAchievements: Logged in as \"%s\".",
-            rcheevos_locals.username);
+            rcheevos_locals.displayname);
          runloop_msg_queue_push(msg, 0, 2 * 60, false, NULL,
                MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
       }
