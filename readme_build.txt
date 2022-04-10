@@ -6,9 +6,9 @@ sudo apt-get install -y libgbm-dev libdrm-common libdrm-dev libdrm2 libegl1-mesa
 
 git clone git@github.com:libretro/RetroArch.git
 
-CFLAGS="-mtune=cortex-a53 -Ofast -march=armv8-a+crc -mfpu=neon-fp-armv8" CXXFLAGS="-march=armv8-a+crc -mfpu=neon-fp-armv8 -mtune=cortex-a53  -Ofast" ./configure --disable-caca --disable-jack --enable-opengl1 --disable-oss --disable-sdl --disable-sdl2 --disable-videocore --disable-vulkan --disable-wayland --disable-x11 --enable-alsa --enable-egl --enable-floathard --enable-kms --enable-neon --disable-opengles --disable-opengles3 --disable-pulse --enable-udev; 
+CFLAGS="-mtune=cortex-a53 -Ofast -march=armv8-a+crc -mfpu=neon-fp-armv8" CXXFLAGS="-march=armv8-a+crc -mfpu=neon-fp-armv8 -mtune=cortex-a53  -Ofast" ./configure --disable-caca --disable-jack --enable-opengl1 --disable-oss --disable-sdl --disable-sdl2 --disable-videocore --disable-vulkan --disable-wayland --disable-x11 --enable-alsa --enable-egl --enable-floathard --enable-kms --enable-neon --disable-opengles --disable-opengles3 --disable-pulse --enable-udev --enable-bluetooth; 
 
-make HAVE_LAKKA=0 HAVE_BLUETOOTH=0 -j2 -s
+make HAVE_LAKKA=0 HAVE_BLUETOOTH=1 -j2 -s
 
 ## build cores
 
