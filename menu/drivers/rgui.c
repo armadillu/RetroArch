@@ -5418,16 +5418,17 @@ static void rgui_update_menu_viewport(rgui_t *rgui,
       
       if (do_integer_scaling)
       {
-         unsigned width_scale  = (vp.full_width / fb_width);
-         unsigned height_scale = (vp.full_height / fb_height);
+         unsigned width_scale  = (vp.full_width / fb_height);
+         unsigned height_scale = (vp.full_height / fb_width);
          unsigned        scale = (width_scale <= height_scale) 
-            ? width_scale 
-            : height_scale;
+            ? height_scale : width_scale;
          
+         //printf("INT SCAL: w=%d h=%d - fw: %d fh: %d\n", vp.width, vp.height, vp.full_width, vp.full_height);
+
          if (scale > 0)
          {
-            rgui->menu_video_settings.viewport.width = scale * fb_width;
-            rgui->menu_video_settings.viewport.height = scale * fb_height;
+            rgui->menu_video_settings.viewport.width = scale * fb_height;
+            rgui->menu_video_settings.viewport.height = scale * fb_width;
          }
          else
             do_integer_scaling = false;
@@ -5438,6 +5439,7 @@ static void rgui_update_menu_viewport(rgui_t *rgui,
        * aspect ratio */
       if (aspect_ratio_lock == RGUI_ASPECT_RATIO_LOCK_FILL_SCREEN)
       {
+
          rgui->menu_video_settings.viewport.width  = vp.full_width;
          rgui->menu_video_settings.viewport.height = vp.full_height;
       }
