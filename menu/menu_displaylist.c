@@ -15294,7 +15294,7 @@ bool menu_displaylist_ctl(enum menu_displaylist_ctl_state type,
                      count++;
 #endif
 
-#if defined(HAVE_LAKKA)
+/*#if defined(HAVE_LAKKA)*/
                if (settings->bools.menu_show_reboot)
                   if (MENU_DISPLAYLIST_PARSE_SETTINGS_ENUM(info->list,
                            MENU_ENUM_LABEL_REBOOT,
@@ -15306,7 +15306,7 @@ bool menu_displaylist_ctl(enum menu_displaylist_ctl_state type,
                            MENU_ENUM_LABEL_SHUTDOWN,
                            PARSE_ACTION, false) == 0)
                      count++;
-#endif
+/*#endif*/
 
                info->flags       |=  MD_FLAG_NEED_PUSH;
             }
