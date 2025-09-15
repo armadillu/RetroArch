@@ -10240,7 +10240,6 @@ static bool setting_append_list(
               parent_group);
 #endif
 
-#if defined(HAVE_LAKKA)
          CONFIG_ACTION(
                list, list_info,
                MENU_ENUM_LABEL_REBOOT,
@@ -10259,7 +10258,6 @@ static bool setting_append_list(
                &subgroup_info,
                parent_group);
          MENU_SETTINGS_LIST_CURRENT_ADD_CMD(list, list_info, CMD_EVENT_SHUTDOWN);
-#endif
 
          CONFIG_ACTION(
                list, list_info,

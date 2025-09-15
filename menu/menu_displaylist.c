@@ -15295,13 +15295,13 @@ bool menu_displaylist_ctl(enum menu_displaylist_ctl_state type,
 #endif
 
 /*#if defined(HAVE_LAKKA)*/
-               if (settings->bools.menu_show_reboot)
+               if (true)
                   if (MENU_DISPLAYLIST_PARSE_SETTINGS_ENUM(info->list,
                            MENU_ENUM_LABEL_REBOOT,
                            PARSE_ACTION, false) == 0)
                      count++;
 
-               if (settings->bools.menu_show_shutdown)
+               if (true)
                   if (MENU_DISPLAYLIST_PARSE_SETTINGS_ENUM(info->list,
                            MENU_ENUM_LABEL_SHUTDOWN,
                            PARSE_ACTION, false) == 0)
