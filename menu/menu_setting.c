@@ -19205,6 +19205,38 @@ static bool setting_append_list(
                   SD_FLAG_NONE);
 #endif
 
+//dirty business here, I cant be bothered to go through the ifdef hell to figure out where to add this
+            CONFIG_BOOL(
+                  list, list_info,
+                  &settings->bools.menu_show_reboot,
+                  MENU_ENUM_LABEL_MENU_SHOW_REBOOT,
+                  MENU_ENUM_LABEL_VALUE_MENU_SHOW_REBOOT,
+                  DEFAULT_MENU_SHOW_REBOOT,
+                  MENU_ENUM_LABEL_VALUE_OFF,
+                  MENU_ENUM_LABEL_VALUE_ON,
+                  &group_info,
+                  &subgroup_info,
+                  parent_group,
+                  general_write_handler,
+                  general_read_handler,
+                  SD_FLAG_NONE);
+
+            CONFIG_BOOL(
+                  list, list_info,
+                  &settings->bools.menu_show_shutdown,
+                  MENU_ENUM_LABEL_MENU_SHOW_SHUTDOWN,
+                  MENU_ENUM_LABEL_VALUE_MENU_SHOW_SHUTDOWN,
+                  DEFAULT_MENU_SHOW_SHUTDOWN,
+                  MENU_ENUM_LABEL_VALUE_OFF,
+                  MENU_ENUM_LABEL_VALUE_ON,
+                  &group_info,
+                  &subgroup_info,
+                  parent_group,
+                  general_write_handler,
+                  general_read_handler,
+                  SD_FLAG_NONE);
+
+
 #if defined(HAVE_LAKKA) || defined(HAVE_ODROIDGO2)
             CONFIG_BOOL(
                   list, list_info,
