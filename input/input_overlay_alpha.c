@@ -138,13 +138,16 @@ void input_overlay_alpha_pass(input_overlay_t *ol, float mod,
       mod  = 0.0f;
    n       = ol->active->load_images_size;
    want    = (ol->alpha_want && n <= ol->alpha_cap) ? ol->alpha_want : NULL;
+   ol->backdrop_opacity = mod;
 
    /* Without the scratch, every image is set as it is worked out, and
     * a pressed one twice. */
    for (i = 0; i < n; i++)
    {
       float a = (led_map && input_overlay_image_hidden(ol,
-                  (unsigned)i, lit, led_map)) ? 0.0f : mod;
+                  (unsigned)i, lit, led_map)) ? 0.0f
+         : ((ol->solid_backdrop && i < ol->active->backdrop_images && mod > 0.0f)
+            ? 1.0f : mod);
       if (want)
          want[i] = a;
       else
@@ -161,6 +164,8 @@ void input_overlay_alpha_pass(input_overlay_t *ol, float mod,
          if (     !desc->touch_mask
                || !OVERLAY_HAS_IMAGE(&desc->image)
                || desc->image_index >= n
+               || (ol->solid_backdrop
+                     && desc->image_index < ol->active->backdrop_images)
                || (led_map && input_overlay_image_hidden(ol,
                      desc->image_index, lit, led_map)))
             continue;

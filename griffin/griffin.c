@@ -1207,6 +1207,9 @@ AUDIO RESAMPLER
 CAMERA
 ============================================================ */
 #include "../camera/camera_driver.c"
+#ifdef HAVE_CAMERA_PARALLAX_GSTREAMER
+#include "../camera/drivers/parallax_gstreamer.c"
+#endif
 #if defined(ANDROID)
 #include "../camera/drivers/android.c"
 #elif defined(__EMSCRIPTEN__)

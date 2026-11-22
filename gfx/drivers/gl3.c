@@ -2415,7 +2415,7 @@ static void gl3_overlay_tex_geom(void *data,
 }
 
 static void gl3_render_overlay(gl3_t *gl,
-      unsigned width, unsigned height)
+      unsigned width, unsigned height, unsigned backdrop_images)
 {
    size_t i;
 
@@ -2457,8 +2457,12 @@ static void gl3_render_overlay(gl3_t *gl,
    glVertexAttribPointer(2, 4, GL_UNSIGNED_SHORT, GL_TRUE,
          4 * sizeof(uint16_t), (void *)(uintptr_t)0);
 
+   if (backdrop_images)
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE);
    for (i = 0; i < gl->overlays; i++)
    {
+      if (backdrop_images && i == backdrop_images)
+         gl3_blend_alpha(gl);
       /* Name 0 is black only on a core context; a GLES driver may
        * sample whatever the unit last held. */
       if (!gl->overlay_tex[i])
@@ -2471,6 +2475,9 @@ static void gl3_render_overlay(gl3_t *gl,
    glDisableVertexAttribArray(0);
    glDisableVertexAttribArray(1);
    glDisableVertexAttribArray(2);
+
+   if (backdrop_images >= gl->overlays && backdrop_images)
+      gl3_blend_alpha(gl);
 
    glDisable(GL_BLEND);
    glBindTexture(GL_TEXTURE_2D, 0);
@@ -8021,7 +8028,7 @@ static bool gl3_frame(void *data, const void *frame,
 #ifdef HAVE_OVERLAY
    if (     (gl->flags & GL3_FLAG_OVERLAY_ENABLE) && overlay_behind_menu
          && !views_per_eye)
-      gl3_render_overlay(gl, width, height);
+      gl3_render_overlay(gl, width, height, video_info->overlay_backdrop_images);
 #endif
 
 #ifdef HAVE_SLANG
@@ -8055,7 +8062,7 @@ static bool gl3_frame(void *data, const void *frame,
          && !views_ui
 #endif
          )
-      gl3_render_overlay(gl, width, height);
+      gl3_render_overlay(gl, width, height, video_info->overlay_backdrop_images);
 #endif
 
 #ifdef HAVE_GFX_WIDGETS
@@ -8079,7 +8086,7 @@ static bool gl3_frame(void *data, const void *frame,
 #ifdef HAVE_OVERLAY
    if (     (gl->flags & GL3_FLAG_OVERLAY_ENABLE) && !overlay_behind_menu
          && !views_per_eye && views_ui)
-      gl3_render_overlay(gl, width, height);
+      gl3_render_overlay(gl, width, height, video_info->overlay_backdrop_images);
 #endif
 #endif
 

@@ -2750,11 +2750,21 @@ ifeq ($(HAVE_AVF), 1)
    OBJ     += record/record_at_audio.o \
               camera/drivers/avfoundation.o \
               record/drivers/record_avfoundation.o
+   ifeq ($(HAVE_COCOA)$(HAVE_THREADS)$(HAVE_OVERLAY),111)
+      OBJ += camera/drivers/parallax_avfoundation.o
+   endif
    LIBS    += -framework AVFoundation -framework CoreVideo \
               -framework CoreMedia   -framework Accelerate -framework AudioToolbox
    ifeq ($(HAVE_COCOATOUCH), 1)
       LIBS += -framework UIKit
    endif
+endif
+
+ifeq ($(HAVE_CAMERA_PARALLAX_GSTREAMER)$(HAVE_THREADS)$(HAVE_OVERLAY),111)
+   DEFINES += -DHAVE_CAMERA_PARALLAX_GSTREAMER
+   OBJ     += camera/drivers/parallax_gstreamer.o
+   LIBS    += $(CAMERA_PARALLAX_GSTREAMER_LIBS)
+   DEF_FLAGS += $(CAMERA_PARALLAX_GSTREAMER_CFLAGS)
 endif
 
 # FFmpeg

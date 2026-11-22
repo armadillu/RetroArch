@@ -231,6 +231,7 @@ HAVE_SDL3=auto             # SDL3 support (disables SDL 1.x and SDL 2.x)
 # Camera, location and recording
 HAVE_V4L2=auto             # Video4linux2 support
 HAVE_AVF=auto              # AVFoundation camera + recording drivers (Apple, macOS 10.7+ / iOS)
+HAVE_CAMERA_PARALLAX_GSTREAMER=auto # GStreamer camera tracking for overlay parallax (Linux)
 HAVE_CORELOCATION=auto     # CoreLocation location driver (Apple, macOS 10.7+ / iOS)
 HAVE_FFMPEG=auto           # FFmpeg support
 C89_FFMPEG=no

@@ -14,9 +14,11 @@
  *  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <math.h>
 #include <stdint.h>
 
 #include <libretro.h>
+#include <clamping.h>
 #include <string/stdstring.h>
 #include <compat/strl.h>
 
@@ -27,6 +29,7 @@
 #include "../verbosity.h"
 
 #include "camera_driver.h"
+#include "camera_parallax.h"
 
 #if defined(HAVE_FFMPEG) && defined(HAVE_AVFORMAT) && defined(HAVE_AVCODEC) && \
    defined(HAVE_AVDEVICE) && defined(HAVE_AVUTIL) && defined(HAVE_SWSCALE)
@@ -81,6 +84,172 @@ const camera_driver_t *camera_drivers[] = {
 };
 
 static camera_driver_state_t camera_driver_st;
+
+#ifdef HAVE_CAMERA_PARALLAX
+static camera_parallax_capture_t camera_parallax_capture;
+static unsigned camera_parallax_last_sample;
+static unsigned camera_parallax_last_face_sample;
+static unsigned camera_parallax_calibration_samples;
+static retro_time_t camera_parallax_sample_time;
+static retro_time_t camera_parallax_update_time;
+static float camera_parallax_x, camera_parallax_y;
+static float camera_parallax_face_size = 1.0f;
+static float camera_parallax_reference_size;
+static bool camera_parallax_attempted;
+
+void camera_parallax_publish(camera_parallax_capture_t *capture,
+      float x, float y, float face_area, float eye_span)
+{
+   /* 9 bits per coordinate, 8 for face size and 5 for the sequence. */
+   unsigned previous = (unsigned)retro_atomic_load_relaxed_int(&capture->sample);
+   unsigned sample   = (((previous >> 26) + 1u) & 31u) << 26;
+   if (face_area > 0.0f)
+   {
+      unsigned sx   = (unsigned)(clamp_float(x, 0.0f, 1.0f) * 510.0f + 0.5f);
+      unsigned sy   = (unsigned)(clamp_float(y, 0.0f, 1.0f) * 510.0f + 0.5f);
+      float extent  = (float)sqrt(MIN(face_area, 1.0f));
+      unsigned size;
+      if (eye_span > 0.0f)
+      {
+         /* Match the rectangle's scale when eyes first become available. */
+         if (capture->eye_scale == 0.0f)
+            capture->eye_scale = extent / eye_span;
+         capture->eye_size = extent = eye_span * capture->eye_scale;
+      }
+      else if (capture->eye_scale > 0.0f)
+      {
+         /* Bridge short misses without jumping to a different scale. */
+         capture->eye_size += (extent - capture->eye_size) * 0.125f;
+         extent = capture->eye_size;
+      }
+      size = (unsigned)(MIN(extent, 1.0f) * 254.0f + 1.5f);
+      sample |= (size << 18) | (sx << 9) | sy;
+   }
+   retro_atomic_store_release_int(&capture->sample, (int)sample);
+}
+
+void camera_parallax_stop(void)
+{
+   camera_parallax_capture_t *capture = &camera_parallax_capture;
+   if (!camera_parallax_attempted)
+      return;
+
+   if (retro_atomic_exchange_int(&capture->requested, 0))
+      camera_parallax_backend_stop();
+   camera_parallax_attempted    = false;
+   camera_parallax_last_sample  = 0;
+   camera_parallax_last_face_sample = 0;
+   camera_parallax_sample_time  = 0;
+   camera_parallax_update_time  = 0;
+   camera_parallax_x = camera_parallax_y = 0.0f;
+   camera_parallax_calibration_samples = 0;
+   camera_parallax_reference_size     = 0.0f;
+   camera_parallax_face_size          = 1.0f;
+}
+
+void camera_parallax_update(bool enable, retro_time_t now,
+      float *x, float *y, float *face_size)
+{
+   camera_parallax_capture_t *capture = &camera_parallax_capture;
+   const settings_t *settings         = config_get_ptr();
+   const char *device                 = settings->arrays.camera_device;
+   unsigned sample, size;
+   float target_x = 0.0f, target_y = 0.0f;
+   float target_size = 1.0f;
+   float smoothing = 85000.0f;
+   float size_smoothing = 85000.0f;
+   float elapsed, blend;
+
+   *x = *y = 0.0f;
+   *face_size = 1.0f;
+   if (!enable || !settings->bools.camera_allow
+         || camera_driver_st.active || camera_driver_st.data
+         || camera_driver_st.preview_on)
+   {
+      camera_parallax_stop();
+      return;
+   }
+
+   if (camera_parallax_attempted && !string_is_equal(capture->device, device))
+      camera_parallax_stop();
+
+   if (!camera_parallax_attempted
+         && !retro_atomic_load_acquire_int(&capture->running))
+   {
+      camera_parallax_attempted = true;
+      strlcpy(capture->device, device, sizeof(capture->device));
+      capture->eye_scale = 0.0f;
+      capture->eye_size  = 0.0f;
+      retro_atomic_store_relaxed_int(&capture->sample, 0);
+      retro_atomic_store_relaxed_int(&capture->requested, 1);
+      retro_atomic_store_release_int(&capture->running, 1);
+      if (!camera_parallax_backend_start(capture))
+      {
+         retro_atomic_store_relaxed_int(&capture->requested, 0);
+         retro_atomic_store_release_int(&capture->running, 0);
+      }
+   }
+
+   if (!camera_parallax_attempted)
+      return;
+
+   sample = (unsigned)retro_atomic_load_acquire_int(&capture->sample);
+   size   = (sample >> 18) & 255u;
+   if (sample != camera_parallax_last_sample)
+   {
+      camera_parallax_last_sample = sample;
+      if (size)
+      {
+         camera_parallax_last_face_sample = sample;
+         camera_parallax_sample_time = now;
+         if (camera_parallax_calibration_samples < 6)
+         {
+            camera_parallax_calibration_samples++;
+            camera_parallax_reference_size += ((float)size
+                  - camera_parallax_reference_size)
+               / (float)camera_parallax_calibration_samples;
+         }
+      }
+   }
+   /* A few missed detections shouldn't pull the scene back to center. */
+   if (camera_parallax_last_face_sample && now >= camera_parallax_sample_time
+         && now - camera_parallax_sample_time < (size ? 500000 : 150000))
+   {
+      float movement;
+      sample = camera_parallax_last_face_sample;
+      size = (sample >> 18) & 255u;
+      target_x = 1.0f - (float)((sample >> 9) & 511u) / 255.0f;
+      target_y = (float)(sample & 511u) / 255.0f - 1.0f;
+      if (camera_parallax_calibration_samples == 6)
+         target_size = clamp_float((float)size / camera_parallax_reference_size,
+               0.70f, 1.35f);
+      movement = MAX(fabs(target_x - camera_parallax_x),
+                     fabs(target_y - camera_parallax_y));
+      /* Follow a lean quickly and steady small detection jitter. */
+      smoothing = 70000.0f - 50000.0f * MIN(movement * 5.0f, 1.0f);
+      movement = (float)fabs(target_size - camera_parallax_face_size);
+      size_smoothing = 110000.0f - 75000.0f * MIN(movement * 8.0f, 1.0f);
+   }
+
+   elapsed = camera_parallax_update_time && now >= camera_parallax_update_time
+      ? (float)(now - camera_parallax_update_time) : 0.0f;
+   blend   = elapsed / (elapsed + smoothing);
+   camera_parallax_update_time = now;
+   camera_parallax_x += (target_x - camera_parallax_x) * blend;
+   camera_parallax_y += (target_y - camera_parallax_y) * blend;
+   camera_parallax_face_size += (target_size - camera_parallax_face_size)
+      * (elapsed / (elapsed + size_smoothing));
+   if (target_x == 0.0f && camera_parallax_x > -0.0001f && camera_parallax_x < 0.0001f)
+      camera_parallax_x = 0.0f;
+   if (target_y == 0.0f && camera_parallax_y > -0.0001f && camera_parallax_y < 0.0001f)
+      camera_parallax_y = 0.0f;
+   if (target_size == 1.0f && fabs(camera_parallax_face_size - 1.0f) < 0.0001f)
+      camera_parallax_face_size = 1.0f;
+   *x = camera_parallax_x;
+   *y = camera_parallax_y;
+   *face_size = camera_parallax_face_size;
+}
+#endif
 
 camera_driver_state_t *camera_state_get_ptr(void)
 {
@@ -263,6 +432,9 @@ void camera_driver_poll(void)
 void camera_driver_preview_open(const camera_preview_sink_t *sink)
 {
    camera_driver_state_t *st = &camera_driver_st;
+#ifdef HAVE_CAMERA_PARALLAX
+   camera_parallax_stop();
+#endif
    st->preview        = *sink;
    st->preview_on     = true;
    st->preview_failed = false;
@@ -310,6 +482,11 @@ enum camera_preview_state camera_driver_preview_poll(void)
       camera_driver_preview_release();
       return CAMERA_PREVIEW_DISALLOWED;
    }
+
+#ifdef HAVE_CAMERA_PARALLAX
+   if (retro_atomic_load_acquire_int(&camera_parallax_capture.running))
+      return CAMERA_PREVIEW_STARTING;
+#endif
 
    /* The core's camera is the core's: watched, never started or
     * stopped for it, and polled here only while the runloop is not. */

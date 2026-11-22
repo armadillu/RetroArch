@@ -79,7 +79,8 @@ enum camera_preview_state
    CAMERA_PREVIEW_OWN,         /* the preview's own camera */
    CAMERA_PREVIEW_SHARED,      /* the core's camera, started */
    CAMERA_PREVIEW_CORE_IDLE,   /* the core's camera, not started */
-   CAMERA_PREVIEW_FAILED       /* the driver would not open or start */
+   CAMERA_PREVIEW_FAILED,     /* the driver would not open or start */
+   CAMERA_PREVIEW_STARTING    /* waiting for another user to release the device */
 };
 
 /* camera_pip_corner: where the gameplay picture-in-picture goes */

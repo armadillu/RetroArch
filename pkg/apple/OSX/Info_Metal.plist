@@ -61,7 +61,7 @@
 		<string>_ra_netplay._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Some cores are able to provide camera input to games.</string>
+	<string>RetroArch uses the camera for supported games and face tracking in parallax overlays.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>

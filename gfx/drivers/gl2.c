@@ -3702,11 +3702,15 @@ static void gl2_overlay_tex_geom(void *data,
    tex[7]       = y + h;
 }
 
-static void gl2_render_overlay(gl2_t *gl)
+static void gl2_render_overlay(gl2_t *gl, unsigned backdrop_images,
+      unsigned first, unsigned limit)
 {
    unsigned i;
    unsigned width                      = VIDEO_SCALE_W(gl->video_dims);
    unsigned height                     = VIDEO_SCALE_H(gl->video_dims);
+
+   if (first == limit)
+      return;
 
    glEnable(GL_BLEND);
 
@@ -3727,11 +3731,18 @@ static void gl2_render_overlay(gl2_t *gl)
    gl->shader->set_coords(gl->shader_data, &gl->coords);
    gl->shader->set_mvp(gl->shader_data, &gl->mvp_no_rot);
 
-   for (i = 0; i < gl->overlays; i++)
+   if (backdrop_images)
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+   for (i = first; i < limit; i++)
    {
+      if (backdrop_images && i == backdrop_images)
+         gl2_blend_alpha(gl);
       glBindTexture(GL_TEXTURE_2D, gl->overlay_tex[i]);
       glDrawArrays(GL_TRIANGLE_STRIP, 4 * i, 4);
    }
+
+   if (backdrop_images >= limit && backdrop_images)
+      gl2_blend_alpha(gl);
 
    glDisable(GL_BLEND);
    gl->coords.vertex    = gl->vertex_ptr;
@@ -6033,6 +6044,9 @@ static void gl2_views_release(gl2_t *gl)
    gl->views.vbo             = 0;
    gl2_vv_target_drop(gl, &gl->views.canvas_target, &gl->views.canvas);
    gl2_vv_target_drop(gl, &gl->views.ui_target, &gl->views.ui);
+#ifdef HAVE_OVERLAY
+   gl2_vv_target_drop(gl, &gl->views.art_target, &gl->views.art);
+#endif
 }
 
 /* The programs views draw with, made on first use: most sessions never
@@ -7569,6 +7583,65 @@ static bool gl2_get_device(void *data, video_device_info_t *info)
 }
 #endif
 
+#ifdef HAVE_OVERLAY
+static void gl2_render_overlay_page(gl2_t *gl, const video_frame_info_t *info)
+{
+   unsigned art = MIN(info->overlay_backdrop_images, gl->overlays);
+#ifdef GL2_VIEWS
+   float opacity = info->overlay_backdrop_opacity;
+   if (art && opacity == 0.0f)
+   {
+      gl2_render_overlay(gl, 0, art, gl->overlays);
+      return;
+   }
+   if (art && opacity > 0.0f && !gl->scrgb.active
+         && gl2_vv_target_ensure(gl, &gl->views.art_target, &gl->views.art,
+            gl->video_dims))
+   {
+      struct video_coords coords;
+      unsigned i;
+      float color[16];
+
+      gl2_bind_fb(gl->views.art.fbo);
+      glDisable(GL_SCISSOR_TEST);
+      glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+      glClear(GL_COLOR_BUFFER_BIT);
+      gl2_blend_alpha(gl);
+      gl2_render_overlay(gl, 0, 0, art);
+
+      /* The art is already premultiplied by the source-over pass. */
+      gl2_renderchain_bind_backbuffer();
+      glViewport(0, 0, VIDEO_SCALE_W(gl->video_dims),
+            VIDEO_SCALE_H(gl->video_dims));
+      for (i = 0; i < 16; i += 4)
+      {
+         color[i]     = opacity;
+         color[i + 1] = opacity;
+         color[i + 2] = opacity;
+         color[i + 3] = 1.0f;
+      }
+      coords.vertex        = vertexes;
+      coords.tex_coord     = tex_coords;
+      coords.color         = color;
+      coords.lut_tex_coord = NULL;
+      coords.vertices      = 4;
+      glEnable(GL_BLEND);
+      glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ZERO, GL_ONE);
+      gl->shader->set_coords(gl->shader_data, &coords);
+      glBindTexture(GL_TEXTURE_2D, gl->views.art.tex);
+      glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+      gl2_blend_alpha(gl);
+      glDisable(GL_BLEND);
+      glViewport(VIDEO_POS_X(gl->vp.pos), VIDEO_POS_Y(gl->vp.pos),
+            VIDEO_SCALE_W(gl->vp.dims), VIDEO_SCALE_H(gl->vp.dims));
+      gl2_render_overlay(gl, 0, art, gl->overlays);
+      return;
+   }
+#endif
+   gl2_render_overlay(gl, art, 0, gl->overlays);
+}
+#endif
+
 static bool gl2_frame(void *data, const void *frame,
       unsigned dims,
       uint64_t frame_count,
@@ -7992,7 +8065,7 @@ static bool gl2_frame(void *data, const void *frame,
 #ifdef HAVE_OVERLAY
    if (     (gl->flags & GL2_FLAG_OVERLAY_ENABLE) && overlay_behind_menu
          && !views_per_eye)
-      gl2_render_overlay(gl);
+      gl2_render_overlay_page(gl, video_info);
 #endif
 
 #if defined(GL2_VIEWS) && defined(HAVE_VIDEO_WINDOWS)
@@ -8034,7 +8107,7 @@ static bool gl2_frame(void *data, const void *frame,
 #ifdef HAVE_OVERLAY
    if (     (gl->flags & GL2_FLAG_OVERLAY_ENABLE) && !overlay_behind_menu
          && !views_per_eye)
-      gl2_render_overlay(gl);
+      gl2_render_overlay_page(gl, video_info);
 #endif
 
 #ifdef HAVE_GFX_WIDGETS

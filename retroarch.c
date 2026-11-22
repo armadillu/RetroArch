@@ -140,6 +140,7 @@
 #include "gfx/common/vulkan_custom_driver.h"
 #endif
 #include "camera/camera_driver.h"
+#include "camera/camera_parallax.h"
 #include "location_driver.h"
 #include "record/record_driver.h"
 #ifdef HAVE_PYROWAVE
@@ -1970,6 +1971,9 @@ void drivers_init(
 
    if (flags & DRIVER_CAMERA_MASK)
    {
+#ifdef HAVE_CAMERA_PARALLAX
+      camera_parallax_stop();
+#endif
       /* Only initialize camera driver if we're ever going to use it. */
       if (camera_st->active)
       {
@@ -2263,6 +2267,9 @@ void driver_uninit(int flags, enum driver_lifetime_flags lifetime_flags)
       }
 
       camera_st->data = NULL;
+#ifdef HAVE_CAMERA_PARALLAX
+      camera_parallax_stop();
+#endif
       camera_driver_preview_release();
       runloop_frame_work_set(RUNLOOP_WORK_CAMERA, false);
    }
@@ -6557,6 +6564,9 @@ bool command_event(enum event_command cmd, void *data)
           * the bit. Disallowing stops a camera that is running. */
          if (!settings->bools.camera_allow)
          {
+#ifdef HAVE_CAMERA_PARALLAX
+            camera_parallax_stop();
+#endif
             driver_camera_stop();
             camera_driver_preview_release();
          }

@@ -104,6 +104,7 @@
 #include <TargetConditionals.h>
 #endif
 #include "menu_cbs.h"
+#include "../camera/camera_parallax.h"
 #include "menu_driver.h"
 #include "menu_dirwalk.h"
 #include "menu_entries.h"
@@ -14466,10 +14467,11 @@ unsigned menu_displaylist_build_list(
 
             for (i = 0; i < ARRAY_SIZE(build_list); i++)
             {
-               /* Privacy lists the camera only with a driver for it */
+#ifndef HAVE_CAMERA_PARALLAX
                if (     build_list[i].enum_idx == MENU_ENUM_LABEL_CAMERA_ALLOW
                      && string_is_equal(settings->arrays.camera_driver, "null"))
                   continue;
+#endif
                if (MENU_DISPLAYLIST_PARSE_SETTINGS_ENUM(list,
                         build_list[i].enum_idx,  build_list[i].parse_type,
                         false) == 0)

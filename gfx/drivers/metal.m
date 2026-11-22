@@ -266,6 +266,8 @@ typedef NS_ENUM(NSUInteger, ViewportResetMode) {
 - (id<MTLTexture>)newTexture:(struct texture_image)image mipmapped:(bool)mipmapped;
 - (void)convertFormat:(RPixelFormat)fmt from:(id<MTLTexture>)src to:(id<MTLTexture>)dst;
 - (id<MTLRenderPipelineState>)getStockShader:(int)index blend:(bool)blend;
+- (id<MTLRenderPipelineState>)backdropState;
+- (id<MTLRenderPipelineState>)solidBackdropState;
 /* A menu effect's pipelines, made from its desc: an object the context
  * keeps until it goes, NULL when they cannot be had */
 - (void *)installEffect:(const gfx_display_effect_desc_t *)desc;
@@ -1787,6 +1789,8 @@ static void buffer_chain_discard(buffer_chain_t *chain);
    MTLClearColor _clearColor;
 
    id<MTLRenderPipelineState> _states[VIDEO_SHADER_PROGRAM_COUNT][2];
+   id<MTLRenderPipelineState> _backdropState;
+   id<MTLRenderPipelineState> _solidBackdropState;
    id<MTLRenderPipelineState> _clearState;
    /* The same for the HDR UI overlay, which is RGBA16Float: every UI
     * draw goes there while HDR is on (see rce), and a pipeline's colour
@@ -2000,6 +2004,8 @@ static void buffer_chain_discard(buffer_chain_t *chain);
    [(id)_clearState release];
    [(id)_clearStateF16 release];
    [(id)_linearStateF16 release];
+   [(id)_backdropState release];
+   [(id)_solidBackdropState release];
    [(id)_commandQueue release];
    [(id)_layer release];
    [(id)_device release];
@@ -2248,6 +2254,16 @@ static void buffer_chain_discard(buffer_chain_t *chain);
       : _states[index][blend ? 1 : 0];
 }
 
+- (id<MTLRenderPipelineState>)backdropState
+{
+   return _hdrEnabled ? nil : _backdropState;
+}
+
+- (id<MTLRenderPipelineState>)solidBackdropState
+{
+   return _hdrEnabled ? nil : _solidBackdropState;
+}
+
 - (void *)installEffect:(const gfx_display_effect_desc_t *)desc
 {
    NSError *err = nil;
@@ -2474,6 +2490,21 @@ static void buffer_chain_discard(buffer_chain_t *chain);
       RARCH_ERR("[Metal] Error creating pipeline state %s.\n", err.localizedDescription.UTF8String);
       return NO;
    }
+
+#ifdef HAVE_OVERLAY
+   psd.label = @"overlay_backdrop";
+   ca.destinationRGBBlendFactor   = MTLBlendFactorOne;
+   ca.sourceAlphaBlendFactor      = MTLBlendFactorZero;
+   ca.destinationAlphaBlendFactor = MTLBlendFactorOne;
+   _backdropState = [_device newRenderPipelineStateWithDescriptor:psd error:NULL];
+   psd.label = @"solid_overlay_backdrop";
+   ca.sourceRGBBlendFactor        = MTLBlendFactorOne;
+   _solidBackdropState = [_device newRenderPipelineStateWithDescriptor:psd error:NULL];
+   ca.sourceRGBBlendFactor        = MTLBlendFactorSourceAlpha;
+   ca.destinationRGBBlendFactor   = MTLBlendFactorOneMinusSourceAlpha;
+   ca.sourceAlphaBlendFactor      = MTLBlendFactorSourceAlpha;
+   ca.destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+#endif
 
    psd.label = @"xmb_plastic";
    psd.fragmentFunction = RARCH_AUTORELEASE_R([_library
@@ -6113,7 +6144,10 @@ static bool metal_get_line_metrics(void *data,
 
 @interface Overlay()
 - (instancetype)initWithContext:(Context *)context;
-- (void)drawWithEncoder:(id<MTLRenderCommandEncoder>)rce;
+- (void)drawWithEncoder:(id<MTLRenderCommandEncoder>)rce backdrop:(unsigned)backdrop_images
+                   from:(NSUInteger)first to:(NSUInteger)limit;
+- (BOOL)drawSolidBackdrop:(unsigned)count opacity:(float)opacity dims:(unsigned)dims
+                  sampler:(id<MTLSamplerState>)sampler;
 @end
 
 /* Context for the cached_frame_read callback that pulls the last
@@ -7444,10 +7478,20 @@ static void metal_views_render(metal_views_t *vs,
       /* Touch overlays would straddle both eyes. */
       if (_overlay.enabled && !views_per_eye)
       {
+         unsigned first = 0;
+         if (video_info->overlay_backdrop_opacity >= 0.0f)
+         {
+            if ([_overlay drawSolidBackdrop:video_info->overlay_backdrop_images
+                    opacity:video_info->overlay_backdrop_opacity
+                    dims:_viewport->full_dims sampler:_samplerStateLinear])
+               first = video_info->overlay_backdrop_images;
+            rce = _context.rce;
+         }
          [_context resetRenderViewport:_overlay.fullscreen ? kFullscreenViewport : kVideoViewport];
          [rce setRenderPipelineState:[_context getStockShader:VIDEO_SHADER_STOCK_BLEND blend:YES]];
          [rce setFragmentSamplerState:_samplerStateLinear atIndex:SamplerIndexDraw];
-         [_overlay drawWithEncoder:rce];
+         [_overlay drawWithEncoder:rce backdrop:first ? 0 : video_info->overlay_backdrop_images
+               from:first to:NSUIntegerMax];
       }
 #endif
 
@@ -9764,6 +9808,7 @@ error:
    Context *_context;
    NSMutableArray<id<MTLTexture>> *_images;
    id<MTLBuffer> _vert;
+   id<MTLTexture> _solidArt;
    bool _vertDirty;
 }
 
@@ -9843,10 +9888,12 @@ error:
    return YES;
 }
 
-- (void)drawWithEncoder:(id<MTLRenderCommandEncoder>)rce
+- (void)drawWithEncoder:(id<MTLRenderCommandEncoder>)rce backdrop:(unsigned)backdrop_images
+                   from:(NSUInteger)first to:(NSUInteger)limit
 {
    size_t i;
    NSUInteger count;
+   id<MTLRenderPipelineState> artState = backdrop_images ? [_context backdropState] : nil;
 #if !defined(HAVE_COCOATOUCH)
    if (_vertDirty)
    {
@@ -9855,14 +9902,77 @@ error:
    }
 #endif
 
-   count = _images.count;
-   for (i = 0; i < count; ++i)
+   count = MIN(_images.count, limit);
+   if (artState)
+      [rce setRenderPipelineState:artState];
+   for (i = first; i < count; ++i)
    {
       NSUInteger offset = sizeof(SpriteVertex) * 4 * i;
+      if (i < backdrop_images && !artState)
+         continue;
+      if (artState && i == backdrop_images)
+         [rce setRenderPipelineState:[_context getStockShader:VIDEO_SHADER_STOCK_BLEND blend:YES]];
       [rce setVertexBuffer:_vert offset:offset atIndex:BufferIndexPositions];
       [rce setFragmentTexture:_images[i] atIndex:TextureIndexColor];
       [rce drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
    }
+   if (artState && count <= backdrop_images)
+      [rce setRenderPipelineState:[_context getStockShader:VIDEO_SHADER_STOCK_BLEND blend:YES]];
+}
+
+- (BOOL)drawSolidBackdrop:(unsigned)count opacity:(float)opacity dims:(unsigned)dims
+                  sampler:(id<MTLSamplerState>)sampler
+{
+   NSUInteger i;
+   NSUInteger width = VIDEO_SCALE_W(dims), height = VIDEO_SCALE_H(dims);
+   id<MTLRenderPipelineState> state = [_context solidBackdropState];
+   id<MTLRenderCommandEncoder> rce;
+   SpriteVertex vertices[4];
+   const float color[4] = {opacity, opacity, opacity, 1.0f};
+   uint64_t packed = rgba16_pack(color);
+
+   if (!count || opacity <= 0.0f)
+      return YES;
+   if (!state || !width || !height)
+      return NO;
+   if (_solidArt.width != width || _solidArt.height != height)
+   {
+      MTLTextureDescriptor *desc = [MTLTextureDescriptor
+           texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+           width:width height:height mipmapped:NO];
+      desc.storageMode = MTLStorageModePrivate;
+      desc.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+      RARCH_ASSIGN(_solidArt, RARCH_AUTORELEASE_R([_context.device newTextureWithDescriptor:desc]));
+      if (!_solidArt)
+         return NO;
+   }
+
+   /* Art layers occlude each other before adding the game's light. */
+   [_context beginLayer:_solidArt];
+   rce = _context.rce;
+   [_context resetRenderViewport:self.fullscreen ? kFullscreenViewport : kVideoViewport];
+   [rce setRenderPipelineState:[_context getStockShader:VIDEO_SHADER_STOCK_BLEND blend:YES]];
+   [rce setVertexBytes:_context.uniformsNoRotate length:sizeof(Uniforms) atIndex:BufferIndexUniforms];
+   [rce setFragmentSamplerState:sampler atIndex:SamplerIndexDraw];
+   [self drawWithEncoder:rce backdrop:0 from:0 to:count];
+   [_context endLayer];
+
+   rce = _context.rce;
+   [_context resetRenderViewport:kFullscreenViewport];
+   [rce setRenderPipelineState:state];
+   [rce setFragmentTexture:_solidArt atIndex:TextureIndexColor];
+   [rce setFragmentSamplerState:sampler atIndex:SamplerIndexDraw];
+   [rce setVertexBytes:_context.uniformsNoRotate length:sizeof(Uniforms) atIndex:BufferIndexUniforms];
+   for (i = 0; i < 4; i++)
+   {
+      vertices[i].position = vertices[i].texCoord =
+         simd_make_float2((float)(i & 1), (float)(i >> 1));
+      vertices[i].color = packed;
+   }
+   [rce setVertexBytes:vertices length:sizeof(vertices) atIndex:BufferIndexPositions];
+   [rce drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
+   [rce setVertexBytes:_context.uniforms length:sizeof(Uniforms) atIndex:BufferIndexUniforms];
+   return YES;
 }
 
 /* The four vertices of sprite @index, or NULL when the buffer has no
@@ -9918,7 +10028,11 @@ error:
    _vertDirty       = YES;
 }
 
-- (void)_freeImages { RARCH_RELEASE_NIL(_images); }
+- (void)_freeImages
+{
+   RARCH_RELEASE_NIL(_images);
+   RARCH_RELEASE_NIL(_solidArt);
+}
 
 @end
 

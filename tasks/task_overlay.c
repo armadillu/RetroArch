@@ -1028,6 +1028,18 @@ static bool task_overlay_load_desc(
          || (desc->reach_up   == 0.0f && desc->reach_down  == 0.0f))
       desc->hitbox = OVERLAY_HITBOX_NONE;
 
+   strlcpy_lit(conf_key + _len, "_parallax_depth", sizeof(conf_key) - _len);
+   if (     !takes_input
+         && !(desc->flags & OVERLAY_DESC_MOVABLE)
+         && OVERLAY_HAS_IMAGE(&desc->image)
+         && config_get_float(conf, conf_key, &tmp_float)
+         && tmp_float > 0.0f && tmp_float <= input_overlay->parallax_depth)
+   {
+      desc->parallax_depth = tmp_float;
+      desc->hitbox = OVERLAY_HITBOX_NONE;
+      input_overlay->parallax_layers++;
+   }
+
    desc->mod_x   = desc->x - desc->range_x;
    desc->mod_w   = 2.0f * desc->range_x;
    desc->mod_y   = desc->y - desc->range_y;
@@ -1255,10 +1267,9 @@ static void task_overlay_deferred_load(retro_task_t *task, void *budget)
          goto error;
       }
 
-      overlay_desc = (struct overlay_desc*)
-         calloc(overlay->config.descs.size, sizeof(*overlay->descs));
-
-      if (!overlay_desc)
+      if (     overlay->config.descs.size
+            && !(overlay_desc = (struct overlay_desc*)
+               calloc(overlay->config.descs.size, sizeof(*overlay->descs))))
       {
          RARCH_ERR("[Overlay] Failed to allocate descs.\n");
          goto error;
@@ -1292,6 +1303,32 @@ static void task_overlay_deferred_load(retro_task_t *task, void *budget)
          overlay->flags |=  OVERLAY_FULL_SCREEN;
       else
          overlay->flags &= ~OVERLAY_FULL_SCREEN;
+
+      strlcpy_lit(conf_key + _len, "_backdrop", sizeof(conf_key) - _len);
+      if (config_get_bool(conf, conf_key, &tmp_bool) && tmp_bool)
+      {
+         overlay->flags |= OVERLAY_BACKDROP;
+         overlay->backdrop_images = 1;
+         strlcpy_lit(conf_key + _len, "_backdrop_images", sizeof(conf_key) - _len);
+         if (!config_get_uint(conf, conf_key, &overlay->backdrop_images))
+            overlay->backdrop_images = 1;
+         strlcpy_lit(conf_key + _len, "_solid_backdrop", sizeof(conf_key) - _len);
+         if (config_get_bool(conf, conf_key, &tmp_bool) && tmp_bool)
+            overlay->flags |= OVERLAY_SOLID_BACKDROP;
+      }
+
+      strlcpy_lit(conf_key + _len, "_parallax_x", sizeof(conf_key) - _len);
+      if (config_get_float(conf, conf_key, &tmp_float)
+            && tmp_float >= -1.0f && tmp_float <= 1.0f)
+         overlay->parallax_x = tmp_float;
+      strlcpy_lit(conf_key + _len, "_parallax_y", sizeof(conf_key) - _len);
+      if (config_get_float(conf, conf_key, &tmp_float)
+            && tmp_float >= -1.0f && tmp_float <= 1.0f)
+         overlay->parallax_y = tmp_float;
+      strlcpy_lit(conf_key + _len, "_parallax_depth", sizeof(conf_key) - _len);
+      if (config_get_float(conf, conf_key, &tmp_float)
+            && tmp_float >= 0.0f && tmp_float <= 1.0f)
+         overlay->parallax_depth = tmp_float;
 
       /* Precache load image array for simplicity. */
       texture_img = (struct texture_image*)

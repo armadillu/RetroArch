@@ -8,7 +8,7 @@ S_BOOL(camera_allow, CAMERA_ALLOW,
       "camera_allow",
       false, SD_FLAG_NONE, 0, CMD_EVENT_CAMERA_ALLOW_APPLY,
       "Allow Camera",
-      "Allow cores to access the camera.")
+      "Allow camera access for cores, previews, and face-tracked overlays.")
 
 /* String settings keep their configuration.c row literal. */
 #ifndef SETTINGS_DEF_CONFIG_PASS

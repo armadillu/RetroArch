@@ -45,6 +45,10 @@
 #endif
 
 #include "input_driver.h"
+#include "../camera/camera_parallax.h"
+#ifdef HAVE_CAMERA_PARALLAX
+#include "../gfx/video_thread_wrapper.h"
+#endif
 #ifdef HAVE_THREADS
 #include "input_key_lane.h"
 #endif
@@ -6777,9 +6781,13 @@ static void input_overlay_set_vertex_geom(input_overlay_t *ol)
       return;
 
    if (OVERLAY_HAS_IMAGE(&ol->active->image))
+   {
       ol->iface->vertex_geom(ol->iface_data, 0,
             ol->active->mod_x, ol->active->mod_y,
             ol->active->mod_w, ol->active->mod_h);
+      ol->parallax_sent_x = ol->parallax_sent_y = 0.0f;
+      ol->parallax_sent_scale = 1.0f;
+   }
 
    for (i = 0; i < ol->active->size; i++)
    {
@@ -6833,6 +6841,11 @@ void input_overlay_set_scale_factor(
  * reloaded from its path (input_overlay_has_source). */
 void input_overlay_video_teardown(void)
 {
+#ifdef HAVE_CAMERA_PARALLAX
+   camera_parallax_stop();
+#endif
+   if (input_driver_st.overlay_ptr)
+      input_driver_st.overlay_ptr->drawn_page = NULL;
    input_overlay_release_textures(input_driver_st.overlay_ptr);
    input_overlay_release_textures(input_driver_st.overlay_cache_ptr);
 }
@@ -6842,6 +6855,7 @@ static void input_overlay_load_active_geom(
 
 void input_overlay_load_active(input_overlay_t *ol, float opacity)
 {
+   ol->drawn_page = NULL;
    /* No page in the driver, no per-image state to set on it: the
     * setters would index whatever the driver held before. */
    if (input_overlay_load_page(ol) != INPUT_OVERLAY_PAGE_NONE)
@@ -6853,13 +6867,98 @@ void input_overlay_load_active(input_overlay_t *ol, float opacity)
 static void input_overlay_load_active_geom(
       input_overlay_t *ol, float opacity)
 {
+   const char *ident = video_driver_get_ident();
+   ol->solid_backdrop = (ol->active->flags & OVERLAY_SOLID_BACKDROP)
+      && (string_is_equal(ident, "metal")
+#ifdef HAVE_GLSL
+         || string_is_equal(ident, "gl")
+#endif
+         );
    input_overlay_set_alpha_mod(ol, opacity);
    input_overlay_set_vertex_geom(ol);
+   ol->drawn_page = ol->active;
 
    if (ol->iface->full_screen)
       ol->iface->full_screen(ol->iface_data,
             (ol->active->flags & OVERLAY_FULL_SCREEN));
 }
+
+#ifdef HAVE_CAMERA_PARALLAX
+void input_overlay_update_parallax(bool gameplay, retro_time_t now)
+{
+   input_overlay_t *ol = input_driver_st.overlay_ptr;
+   const struct overlay *page = ol ? ol->drawn_page : NULL;
+   float x, y, face_size, scale;
+   float lean_x, lean_y;
+
+   if (     !page
+         || page != ol->active
+         || !(ol->flags & INPUT_OVERLAY_ENABLE)
+         || (ol->flags & INPUT_OVERLAY_IS_OSK)
+         || !ol->iface || !ol->iface->vertex_geom
+         || !OVERLAY_HAS_IMAGE(&page->image)
+         || (page->parallax_x == 0.0f && page->parallax_y == 0.0f
+            && page->parallax_depth == 0.0f))
+   {
+      camera_parallax_stop();
+      return;
+   }
+
+   camera_parallax_update(gameplay && !(ol->flags &
+            (INPUT_OVERLAY_GAMEPAD_HIDDEN | INPUT_OVERLAY_STYLUS_HIDDEN)),
+         now, &x, &y, &face_size);
+
+   /* Face size is proportional to inverse eye distance. */
+   scale = (1.0f + page->parallax_depth)
+      / (1.0f + page->parallax_depth * face_size);
+   lean_x = x * page->parallax_x;
+   lean_y = y * page->parallax_y;
+   x = lean_x * scale;
+   y = lean_y * scale;
+   if (fabsf(x - ol->parallax_sent_x) >= 0.0001f
+         || fabsf(y - ol->parallax_sent_y) >= 0.0001f
+         || fabsf(scale - ol->parallax_sent_scale) >= 0.0001f
+         || ((x == 0.0f && y == 0.0f && scale == 1.0f)
+            && (ol->parallax_sent_x != 0.0f || ol->parallax_sent_y != 0.0f
+               || ol->parallax_sent_scale != 1.0f)))
+   {
+      if (!video_thread_overlay_can_queue(ol->iface, ol->iface_data,
+               1 + page->parallax_layers))
+         return;
+      ol->iface->vertex_geom(ol->iface_data, 0,
+            page->mod_x + (page->mod_x - 0.5f) * (scale - 1.0f) + x,
+            page->mod_y + (page->mod_y - 0.5f) * (scale - 1.0f) + y,
+            page->mod_w * scale, page->mod_h * scale);
+      ol->parallax_sent_x = x;
+      ol->parallax_sent_y = y;
+      ol->parallax_sent_scale = scale;
+
+      if (page->parallax_layers)
+      {
+         size_t i;
+         for (i = 0; i < page->size; i++)
+         {
+            const struct overlay_desc *desc = &page->descs[i];
+            float depth = desc->parallax_depth;
+            if (depth > 0.0f)
+            {
+               float denominator = 1.0f + depth * face_size;
+               float layer_scale = (1.0f + depth) / denominator;
+               /* Both planes share the same eye position. */
+               float shift = (depth / page->parallax_depth)
+                  * (1.0f + page->parallax_depth) / denominator;
+               ol->iface->vertex_geom(ol->iface_data, desc->image_index,
+                     desc->mod_x + (desc->mod_x - 0.5f) * (layer_scale - 1.0f)
+                        + lean_x * shift,
+                     desc->mod_y + (desc->mod_y - 0.5f) * (layer_scale - 1.0f)
+                        + lean_y * shift,
+                     desc->mod_w * layer_scale, desc->mod_h * layer_scale);
+            }
+         }
+      }
+   }
+}
+#endif
 
 /**
  * input_overlay_next_move_touch_masks
@@ -18081,6 +18180,23 @@ bool input_driver_overlay_active_page(void)
 {
    const input_overlay_t *ol = input_driver_st.overlay_ptr;
    return ol && (ol->flags & INPUT_OVERLAY_ALIVE) && ol->active;
+}
+
+unsigned input_driver_overlay_backdrop_images(void)
+{
+   const input_overlay_t *ol = input_driver_st.overlay_ptr;
+   if (ol && (ol->flags & INPUT_OVERLAY_ENABLE)
+      && ol->active && ol->drawn_page == ol->active
+      && (ol->active->flags & OVERLAY_BACKDROP)
+      && OVERLAY_HAS_IMAGE(&ol->active->image))
+      return MIN(ol->active->backdrop_images, ol->active->load_images_size);
+   return 0;
+}
+
+float input_driver_overlay_backdrop_opacity(void)
+{
+   const input_overlay_t *ol = input_driver_st.overlay_ptr;
+   return ol && ol->solid_backdrop ? ol->backdrop_opacity : -1.0f;
 }
 
 /* An overlay is up whose page takes input. */

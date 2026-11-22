@@ -1,0 +1,141 @@
+# Camera parallax for overlays
+
+An overlay preset can move its base artwork with the viewer's face. The
+game viewport and individual overlay controls keep their positions.
+RetroArch processes the camera image locally. If tracking loses the face,
+the artwork eases back to its original position.
+
+Enable **Settings → Privacy → Allow Camera** and load an overlay preset
+with parallax enabled. The camera runs during gameplay while the
+parallax page is active. A core or preview using the camera takes priority.
+
+## Build and launch the Asteroids Deluxe example
+
+Run the build commands from the repository root.
+
+On macOS, install Xcode and its [Metal Toolchain](https://developer.apple.com/documentation/xcode/downloading-and-installing-additional-xcode-components).
+Build the application bundle so macOS can identify it when requesting
+camera permission.
+
+```sh
+./configure --enable-metal --enable-slang --disable-qt
+make -j4 bundle
+```
+
+On Linux, install the compiler, pkg-config, OpenGL/GLX and X11 development
+headers, and the GStreamer development package. On Debian and Ubuntu, the
+GStreamer development package is `libgstreamer1.0-dev`. See
+[Camera selection](#camera-selection) for the runtime packages.
+
+```sh
+./configure --enable-camera_parallax_gstreamer --enable-opengl --enable-glsl --disable-qt --disable-wayland
+make -j4
+```
+
+Put these local inputs in place before launching:
+
+- Put your MAME 2003-Plus compatible `astdelux.zip` ROM in
+  `tools/asteroids-parallax/local/`.
+- The launcher loads the layered preset and five artwork images from
+  `tools/asteroids-parallax/`. On Linux, if your distribution omits the
+  OpenCV eye-pair cascade, place
+  `haarcascade_mcs_eyepair_small.xml` in `tools/asteroids-parallax/local/`
+  or set the path as described under [Camera selection](#camera-selection).
+- Install the MAME 2003-Plus core. The launcher looks in
+  `~/Library/Application Support/RetroArch/cores/` on macOS or
+  `${XDG_CONFIG_HOME:-$HOME/.config}/retroarch/cores/` on Linux. Set
+  `RETROARCH_CORE` to use a core from a different directory.
+
+On macOS, double-click
+`tools/asteroids-parallax/Play Asteroids Deluxe.command`. On Linux, run:
+
+```sh
+./tools/asteroids-parallax/launch.sh
+```
+
+The macOS launcher uses RetroArch's installed Slang vector-glow preset
+when available. Linux uses a GLSL vector shader included with the launcher.
+Set `RETROARCH_SHADER` to choose a compatible preset or shader.
+The core's own artwork is disabled so the moving RetroArch backdrop
+composites with the vectors.
+
+Use `RETROARCH_PARALLAX_DATA` for a different local data directory,
+`RETROARCH_ROM` for a different ROM path, `RETROARCH_OVERLAY` for a
+different overlay preset, or `RETROARCH_BIN` for a different app or
+executable. The data directory receives the saves, states, and
+`retroarch.log`. Set `RETROARCH_CAMERA_ALLOW=false` for a camera-off
+test. Extra launcher arguments go to RetroArch.
+
+## Preset example
+
+```ini
+overlays = 1
+overlay0_overlay = "art.png"
+overlay0_backdrop = true
+overlay0_full_screen = true
+overlay0_descs = 0
+overlay0_rect = "-0.125,-0.125,1.25,1.25"
+overlay0_parallax_x = 0.045
+overlay0_parallax_y = 0.03
+overlay0_parallax_depth = 0.75
+```
+
+Each `overlayN_parallax_x` and `overlayN_parallax_y` sets the maximum
+shift along that axis at the starting distance as a fraction of the
+overlay's drawing area.
+Positive values follow the viewer, negative values reverse the direction,
+and zero disables that axis. Values range from -1 to 1 and default to zero.
+The oversized rectangle gives the image room to move without exposing
+its edges.
+
+With `overlayN_parallax_depth` above zero, the artwork is projected as a
+plane behind the screen. The value expresses its depth as a fraction of
+the starting viewing distance and ranges from 0 to 1. Sit at your usual
+distance when tracking starts. RetroArch uses the first few detections
+to calibrate depth at that distance. When both eyes are detected, their
+apparent separation estimates relative distance. Depth eases toward the
+face-rectangle estimate when the eyes are obscured. Lean closer to see
+more of the art through the fixed screen area. A value of zero keeps
+the artwork at a constant scale.
+
+Decorative descriptor images can sit in front of the rear artwork at
+their own depths. Set `overlayN_descM_parallax_depth` to a value up to the
+base artwork's depth on a stationary `nul` descriptor with an image.
+An omitted depth keeps the descriptor anchored to the screen.
+
+For a vector game's backdrop, set `overlayN_backdrop = true`. RetroArch
+adds the game's shaded light to the art. The game shows the artwork
+through its black field, and bright vectors retain their intensity. The
+game's shader passes see the game image alone. This composition is
+available with the OpenGL, Metal, Vulkan and SDL3 video drivers in SDR.
+Overlay Opacity sets the artwork brightness.
+Use `overlayN_backdrop_images` to apply the same composition to the first
+few images in the page, including the base artwork. It defaults to one.
+With Metal or the `gl` driver in SDR, set
+`overlayN_solid_backdrop = true` to composite those images in order
+before adding the game's shaded light. An opaque pixel then covers the
+earlier artwork at that position. Overlay Opacity still controls the
+brightness of the combined artwork.
+
+## Camera selection
+
+- On macOS 10.13 and later, RetroArch uses AVFoundation and Vision. It
+  prefers a USB camera when one is available. Set `camera_device` to
+  the camera's name or unique ID to select a specific device. Grant camera
+  access when macOS prompts.
+- On Linux, build with GStreamer development headers installed. The build
+  detects them automatically and can require them with
+  `./configure --enable-camera_parallax_gstreamer`. At runtime, install
+  the GStreamer V4L2 and OpenCV plugins and OpenCV cascade data. On
+  Debian and Ubuntu these are provided by `gstreamer1.0-plugins-good`,
+  `gstreamer1.0-opencv`, and `opencv-data`. RetroArch prefers a USB camera
+  listed under `/dev/v4l/by-id` and falls back to `/dev/video0`. Set
+  `camera_device` to a specific V4L2 path to override that choice.
+  Eye-based depth uses GStreamer's eye-pair cascade. If your distribution
+  omits it from the OpenCV data package, point
+  `RETROARCH_CAMERA_EYE_PROFILE` to a local
+  [OpenCV eye-pair cascade XML](https://github.com/opencv/opencv_attic/blob/master/opencv/data/haarcascades/haarcascade_mcs_eyepair_small.xml)
+  before launching. Face-rectangle depth is available without the eye-pair
+  cascade.
+
+Both builds require overlay and thread support.

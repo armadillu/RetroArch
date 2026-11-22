@@ -8247,6 +8247,14 @@ void video_driver_build_info(video_frame_info_t *video_info)
 #endif
 
    video_info->libretro_running            = false;
+#ifdef HAVE_OVERLAY
+   video_info->overlay_backdrop_images     = input_driver_overlay_backdrop_images();
+   video_info->overlay_backdrop_opacity    = video_info->overlay_backdrop_images
+      ? input_driver_overlay_backdrop_opacity() : -1.0f;
+#else
+   video_info->overlay_backdrop_images     = 0;
+   video_info->overlay_backdrop_opacity    = -1.0f;
+#endif
    video_info->msg_bgcolor_enable          = settings->bools.video_msg_bgcolor_enable;
 
    video_info->fps_update_interval         = settings->uints.fps_update_interval;

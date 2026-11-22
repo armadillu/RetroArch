@@ -35,6 +35,10 @@ gmon.out
 /retroarch.cfg
 /retroarch.exe
 /retroarch_debug.exe
+/RetroArch.app/
+/default.metallib
+/gfx/drivers/metal_shaders/Shaders.air
+/tools/asteroids-parallax/local/
 /config.h
 /config.mk
 *.ncb

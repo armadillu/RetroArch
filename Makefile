@@ -162,6 +162,10 @@ ifneq ($(CXX_BUILD), 1)
          $(PIPEWIRE_C89_OBJ): DEFINES += -std=gnu99 -Dinline=__inline__ \
                $(patsubst -I%,-isystem %,$(filter -I%,$(PIPEWIRE_CFLAGS)))
       endif
+      ifeq ($(HAVE_CAMERA_PARALLAX_GSTREAMER), 1)
+         $(OBJDIR)/camera/drivers/parallax_gstreamer.o: DEFINES += \
+               $(patsubst -I%,-isystem %,$(filter -I%,$(CAMERA_PARALLAX_GSTREAMER_CFLAGS)))
+      endif
    else ifeq ($(HAVE_C99), 1)
       CFLAGS += $(C99_CFLAGS)
    endif

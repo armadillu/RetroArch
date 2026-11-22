@@ -76,6 +76,7 @@
 #ifdef HAVE_AVF
 #include "../record/record_at_audio.c"
 #include "../camera/drivers/avfoundation.m"
+#include "../camera/drivers/parallax_avfoundation.m"
 #include "../record/drivers/record_avfoundation.m"
 #endif
 

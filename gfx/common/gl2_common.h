@@ -367,6 +367,10 @@ struct gl2
       struct gl2_views_fbo  ui;
       video_views_target_t  canvas_target;
       video_views_target_t  ui_target;
+#ifdef HAVE_OVERLAY
+      struct gl2_views_fbo  art;
+      video_views_target_t  art_target;
+#endif
       video_views_ui_dims_t saved;
       struct gl2_views_prog rect;
       struct gl2_views_prog layer;

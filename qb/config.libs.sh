@@ -1120,6 +1120,15 @@ fi
 
 check_enabled V4L2 VIDEOPROCESSOR 'video processor' 'Video4linux2 is' true
 
+check_platform Linux CAMERA_PARALLAX_GSTREAMER 'GStreamer camera tracking is' true
+if [ "$OS" = 'Linux' ]; then
+   check_enabled THREADS CAMERA_PARALLAX_GSTREAMER 'GStreamer camera tracking' 'Threads are' false
+   check_enabled OVERLAY CAMERA_PARALLAX_GSTREAMER 'GStreamer camera tracking' 'Overlays are' false
+   check_pkgconf CAMERA_PARALLAX_GSTREAMER gstreamer-1.0 '1.14' '' true
+else
+   HAVE_CAMERA_PARALLAX_GSTREAMER=no
+fi
+
 if [ "$HAVE_CXX11" = 'yes' ]; then
    if [ "$OS" = 'Linux' ]; then
       check_enabled 'VIDEOCORE X11' SR2 'CRT modeswitching' 'CRT is' true

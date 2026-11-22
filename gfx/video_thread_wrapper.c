@@ -5500,6 +5500,18 @@ static const video_overlay_interface_t thread_overlay = {
    thread_overlay_set_alpha,
 };
 
+bool video_thread_overlay_can_queue(const video_overlay_interface_t *iface,
+      void *data, unsigned count)
+{
+   int head, tail;
+   if (iface != &thread_overlay)
+      return true;
+
+   if (!video_thread_defer_begin((thread_video_t*)data, &head, &tail))
+      return false;
+   return count <= (unsigned)(VIDEO_THREAD_DEFERRED_MAX - (head - tail));
+}
+
 static void video_thread_get_overlay_interface(void *data,
       const video_overlay_interface_t **iface)
 {

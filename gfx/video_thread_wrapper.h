@@ -41,6 +41,13 @@
 
 RETRO_BEGIN_DECLS
 
+#ifdef HAVE_OVERLAY
+struct video_overlay_interface;
+/* Check that the main thread can enqueue a whole set of geometry updates. */
+bool video_thread_overlay_can_queue(const struct video_overlay_interface *iface,
+      void *data, unsigned count);
+#endif
+
 enum video_thread_win_flags
 {
    VIDEO_THREAD_WIN_ALIVE        = (1 << 0),

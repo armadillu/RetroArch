@@ -1367,6 +1367,9 @@ bool input_driver_game_focus_core_requested(void);
 bool input_driver_overlay_alive(void);
 bool input_driver_overlay_takes_input(void);
 bool input_driver_overlay_active_page(void);
+unsigned input_driver_overlay_backdrop_images(void);
+float input_driver_overlay_backdrop_opacity(void);
+void input_overlay_update_parallax(bool gameplay, retro_time_t now);
 /* Whatever is down now is held back, control by control, until each is
  * let go: from the core (its buttons, keys, mouse and lightgun buttons
  * and the pointer press) and from what the run loop and the menu see

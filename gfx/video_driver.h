@@ -785,6 +785,8 @@ typedef struct video_frame_info
    float hdr_paper_white_nits;
    float hdr_max_nits;
    bool overlay_behind_menu;
+   unsigned overlay_backdrop_images;
+   float overlay_backdrop_opacity;
    bool scan_subframes;
    bool shader_active;
    /* Ask the driver to keep a copy of what this frame put on screen,

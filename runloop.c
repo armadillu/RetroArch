@@ -139,6 +139,7 @@ bool android_get_vfs_authorized_locations(
 #include "runloop.h"
 #include "calendar_time.h"
 #include "camera/camera_driver.h"
+#include "camera/camera_parallax.h"
 #include "location_driver.h"
 #include "record/record_driver.h"
 #ifdef HAVE_PYROWAVE
@@ -8702,6 +8703,17 @@ static enum runloop_state_enum runloop_check_state(
    }
 #endif
 
+#ifdef HAVE_CAMERA_PARALLAX
+   {
+      bool gameplay = (runloop_st->flags & RUNLOOP_FLAG_CORE_RUNNING)
+         && !(runloop_st->flags & RUNLOOP_FLAG_IDLE);
+#ifdef HAVE_MENU
+      gameplay = gameplay && !(menu_st->flags & MENU_ST_FLAG_ALIVE);
+#endif
+      input_overlay_update_parallax(gameplay, current_time);
+   }
+#endif
+
 #if defined(HAVE_MENU) || defined(HAVE_GFX_WIDGETS)
    /* The menu lays out at its window's size: one eye's for per-eye UI */
    output_dims = video_driver_get_ui_layer_dims(VIDEO_WINDOW_UI_MENU);
@@ -10370,6 +10382,9 @@ int runloop_iterate(void)
             netplay_allow_timeskip))
    {
       case RUNLOOP_STATE_QUIT:
+#ifdef HAVE_CAMERA_PARALLAX
+         camera_parallax_stop();
+#endif
          runloop_st->frame_limit_anchor_ns = 0;
          runloop_st->flags                &= ~RUNLOOP_FLAG_CORE_RUNNING;
          command_event(CMD_EVENT_QUIT, NULL);

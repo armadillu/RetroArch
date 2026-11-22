@@ -143,7 +143,9 @@ enum OVERLAY_FLAGS
    /* At least one desc on the page does something when pressed. A
     * page of nothing but "nul" buttons (an LED or decoration overlay)
     * takes no input, so it has no claim on the menu's mouse. */
-   OVERLAY_TAKES_INPUT        = (1 << 8)
+   OVERLAY_TAKES_INPUT        = (1 << 8),
+   OVERLAY_BACKDROP           = (1 << 9),
+   OVERLAY_SOLID_BACKDROP     = (1 << 10)
 };
 
 enum OVERLAY_DESC_FLAGS
@@ -255,6 +257,7 @@ struct overlay_desc
    float range_x, range_y;
    float range_x_mod, range_y_mod;
    float mod_x, mod_y, mod_w, mod_h;
+   float parallax_depth;
    float delta_x, delta_y;
    /* the delta its image was last drawn at: a movable desc's geometry
     * goes to the driver only when it moves */
@@ -312,6 +315,8 @@ struct overlay
    struct texture_image image;
 
    unsigned load_images_size;
+   unsigned backdrop_images;
+   unsigned parallax_layers;
    unsigned id;
 
    size_t size;
@@ -321,6 +326,7 @@ struct overlay
    float x, y, w, h;
    float center_x, center_y;
    float aspect_ratio;
+   float parallax_x, parallax_y, parallax_depth;
 
    /* Viewport override - normalized coordinates (0.0-1.0) */
    struct
@@ -421,6 +427,7 @@ struct input_overlay
 {
    struct overlay *overlays;
    const struct overlay *active;
+   const struct overlay *drawn_page;
    char *path;
    void *iface_data;
    const video_overlay_interface_t *iface;
@@ -486,6 +493,9 @@ struct input_overlay
    size_t size;
 
    unsigned next_index;
+   float parallax_sent_x, parallax_sent_y, parallax_sent_scale;
+   float backdrop_opacity;
+   bool solid_backdrop;
 
    uint8_t flags;
 };

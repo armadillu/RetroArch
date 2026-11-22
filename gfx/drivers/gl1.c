@@ -1225,7 +1225,7 @@ static bool gl1_raster_font_get_line_metrics(void* data, struct font_line_metric
 #ifdef HAVE_OVERLAY
 static void gl1_render_overlay(gl1_t *gl,
       unsigned width,
-      unsigned height)
+      unsigned height, unsigned backdrop_images)
 {
    int i;
 
@@ -1273,8 +1273,12 @@ static void gl1_render_overlay(gl1_t *gl,
    glTexCoordPointer(2, GL_FLOAT, 0, gl->overlay_tex_coord);
    glColorPointer(4, GL_FLOAT, 0, gl->overlay_color_coord);
 
+   if (backdrop_images)
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE);
    for (i = 0; i < (int)gl->overlays; i++)
    {
+      if (backdrop_images && (unsigned)i == backdrop_images)
+         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
       glBindTexture(GL_TEXTURE_2D, gl->overlay_tex[i]);
       glDrawArrays(GL_TRIANGLE_STRIP, 4 * i, 4);
    }
@@ -1287,6 +1291,9 @@ static void gl1_render_overlay(gl1_t *gl,
    glPopMatrix();
    glMatrixMode(GL_PROJECTION);
    glPopMatrix();
+
+   if (backdrop_images >= gl->overlays && backdrop_images)
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
    glDisable(GL_BLEND);
    gl->coords.vertex    = gl->vertex_ptr;
@@ -3229,7 +3236,8 @@ static bool gl1_frame(void *data, const void *frame,
    /* Touch overlays would straddle both eyes. */
    if (     (gl1->flags & GL1_FLAG_OVERLAY_ENABLE) && overlay_behind_menu
          && !views_per_eye)
-      gl1_render_overlay(gl1, video_width, video_height);
+      gl1_render_overlay(gl1, video_width, video_height,
+            video_info->overlay_backdrop_images);
 #endif
 
    if (gl1->flags & GL1_FLAG_MENU_TEXTURE_ENABLE)
@@ -3267,7 +3275,8 @@ static bool gl1_frame(void *data, const void *frame,
 #ifdef HAVE_OVERLAY
    if (     (gl1->flags & GL1_FLAG_OVERLAY_ENABLE) && !overlay_behind_menu
          && !views_per_eye)
-      gl1_render_overlay(gl1, video_width, video_height);
+      gl1_render_overlay(gl1, video_width, video_height,
+            video_info->overlay_backdrop_images);
 #endif
 
    if (msg)

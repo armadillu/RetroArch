@@ -61,7 +61,7 @@ static void sdl3_gfx_free(void *data);
 
 #ifdef HAVE_OVERLAY
 static void sdl3_overlay_free(sdl3_video_t *vid);
-static void sdl3_overlays_render(sdl3_video_t *vid);
+static void sdl3_overlays_render(sdl3_video_t *vid, unsigned backdrop_images);
 #endif
 
 /* Sharp scaling picks pixel art's filter, which is nearest at whole
@@ -976,7 +976,7 @@ static void sdl3_render_ui(sdl3_video_t *vid, const char *msg,
 
 #ifdef HAVE_OVERLAY
    if (overlay_visible && video_info->overlay_behind_menu)
-      sdl3_overlays_render(vid);
+      sdl3_overlays_render(vid, video_info->overlay_backdrop_images);
 #endif
 
 #ifdef HAVE_MENU
@@ -1008,7 +1008,7 @@ static void sdl3_render_ui(sdl3_video_t *vid, const char *msg,
 
 #ifdef HAVE_OVERLAY
    if (overlay_visible && !video_info->overlay_behind_menu)
-      sdl3_overlays_render(vid);
+      sdl3_overlays_render(vid, video_info->overlay_backdrop_images);
 #endif
 
 #ifdef HAVE_GFX_WIDGETS
@@ -2716,7 +2716,7 @@ static void sdl3_overlay_set_alpha(void *data, unsigned index, float mod)
 
 /* Render every loaded overlay image. Runs inside sdl3_render_ui's
  * full-window viewport switch. */
-static void sdl3_overlays_render(sdl3_video_t *vid)
+static void sdl3_overlays_render(sdl3_video_t *vid, unsigned backdrop_images)
 {
    unsigned i;
 
@@ -2725,6 +2725,8 @@ static void sdl3_overlays_render(sdl3_video_t *vid)
       SDL_FRect src, dst;
       struct sdl3_overlay *o = &vid->overlays[i];
       float base_x, base_y, base_w, base_h;
+      SDL_BlendMode blend_mode;
+      bool blend_changed = false;
 
       if (!o->tex || o->alpha_mod <= 0.0f)
          continue;
@@ -2764,7 +2766,11 @@ static void sdl3_overlays_render(sdl3_video_t *vid)
          continue;
 
       SDL_SetTextureAlphaModFloat(o->tex, o->alpha_mod);
+      if (i < backdrop_images && SDL_GetTextureBlendMode(o->tex, &blend_mode))
+         blend_changed = SDL_SetTextureBlendMode(o->tex, SDL_BLENDMODE_ADD);
       SDL_RenderTexture(vid->renderer, o->tex, &src, &dst);
+      if (blend_changed)
+         SDL_SetTextureBlendMode(o->tex, blend_mode);
    }
 }
 

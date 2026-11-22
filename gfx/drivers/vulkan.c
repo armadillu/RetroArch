@@ -724,8 +724,9 @@ typedef struct vk
        *   [0] alpha_blend, no blend
        *   [1] alpha_blend, blend
        *   [2] XMB icon plastic
+       *   [3] Additive overlay backdrop
        * All entries are TRIANGLE_STRIP topology. */
-      VkPipeline pipelines[3];
+      VkPipeline pipelines[4];
 #ifdef VULKAN_HDR_SWAPCHAIN
       VkPipeline pipelines_sdr[3]; /* SDR offscreen variants, same layout */
       /* The HDR UI layer's blended strip for an RGBA16F texture, linear
@@ -3375,7 +3376,7 @@ static void vulkan_chain_wait_submissions(void *handle);
 
 #ifdef HAVE_OVERLAY
 static void vulkan_overlay_free(vk_t *vk);
-static void vulkan_render_overlay(vk_t *vk, unsigned dims);
+static void vulkan_render_overlay(vk_t *vk, unsigned dims, unsigned backdrop_images);
 #endif
 static void vulkan_viewport_info(void *data, struct video_viewport *vp);
 
@@ -6064,6 +6065,13 @@ static void vulkan_init_pipelines(vk_t *vk)
       vkCreateGraphicsPipelines(vk->context->device, vk->pipelines.cache,
             1, &pipe, NULL, &vk->display.pipelines[i]);
    }
+
+#ifdef HAVE_OVERLAY
+   blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+   vkCreateGraphicsPipelines(vk->context->device, vk->pipelines.cache,
+         1, &pipe, NULL, &vk->display.pipelines[3]);
+   blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+#endif
 
    vkDestroyShaderModule(vk->context->device, shader_stages[1].module, NULL);
    module_info.codeSize = spirv_xmb_plastic_frag_size;
@@ -15062,7 +15070,7 @@ static bool vulkan_frame(void *data, const void *frame,
 #ifdef HAVE_OVERLAY
       if (     (vk->flags & VK_FLAG_OVERLAY_ENABLE) && overlay_behind_menu
             && !views_per_eye)
-         vulkan_render_overlay(vk, video_info->dims);
+         vulkan_render_overlay(vk, video_info->dims, video_info->overlay_backdrop_images);
 #endif
 
 #ifdef HAVE_VIDEO_WINDOWS
@@ -15105,7 +15113,7 @@ static bool vulkan_frame(void *data, const void *frame,
 #ifdef HAVE_OVERLAY
       if (     (vk->flags & VK_FLAG_OVERLAY_ENABLE) && !overlay_behind_menu
             && !views_per_eye && !views_ui)
-         vulkan_render_overlay(vk, video_info->dims);
+         vulkan_render_overlay(vk, video_info->dims, video_info->overlay_backdrop_images);
 #endif
 
       if (message_visible && notes_here)
@@ -15138,7 +15146,7 @@ static bool vulkan_frame(void *data, const void *frame,
 #ifdef HAVE_OVERLAY
       if (     (vk->flags & VK_FLAG_OVERLAY_ENABLE) && !overlay_behind_menu
             && !views_per_eye && views_ui)
-         vulkan_render_overlay(vk, video_info->dims);
+         vulkan_render_overlay(vk, video_info->dims, video_info->overlay_backdrop_images);
 #endif
 
       /* End the render pass. We're done rendering to backbuffer now. */
@@ -19093,7 +19101,7 @@ static void vulkan_overlay_set_alpha(void *data,
       pv[i].color = color;
 }
 
-static void vulkan_render_overlay(vk_t *vk, unsigned dims)
+static void vulkan_render_overlay(vk_t *vk, unsigned dims, unsigned backdrop_images)
 {
    int i;
    struct video_viewport vp;
@@ -19199,6 +19207,16 @@ static void vulkan_render_overlay(vk_t *vk, unsigned dims)
 #else
             VkPipeline pipeline    = vk->display.pipelines[1];
 #endif
+
+            if ((unsigned)idx < backdrop_images)
+            {
+#ifdef VULKAN_HDR_SWAPCHAIN
+               if (vk->context->flags & VK_CTX_FLAG_HDR_ENABLE)
+                  continue;
+#endif
+               if (!(pipeline = vk->display.pipelines[3]))
+                  continue;
+            }
 
             if (tex->image)
                vulkan_transition_texture(vk, vk->cmd, tex);
