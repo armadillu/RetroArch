@@ -64,6 +64,10 @@ or set `RETROARCH_SHADER` to a preset path:
 RETROARCH_SHADER="/path/to/my-shader.slangp" ./tools/asteroids-parallax/launch.sh
 ```
 
+On Linux, the launcher opens fullscreen at the current desktop resolution,
+including 1600×1200. The Asteroids Deluxe overlay applies a cyan tint to
+the game's shader output before compositing the artwork.
+
 The core's own artwork is disabled so the moving RetroArch backdrop
 composites with the vectors.
 
@@ -189,6 +193,9 @@ With Metal, `gl`, or a Slang-enabled `glcore` build in SDR, set
 before adding the game's shaded light. An opaque pixel then covers the
 earlier artwork at that position. Overlay Opacity still controls the
 brightness of the combined artwork.
+In SDR on Slang-enabled `glcore`, `overlayN_backdrop_tint` takes a
+six-digit hexadecimal RGB multiplier, such as `0x26F2FF`. It applies to
+the shaded game image before the backdrop is composited.
 
 ## Camera selection
 

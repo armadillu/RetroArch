@@ -1368,6 +1368,7 @@ bool input_driver_overlay_alive(void);
 bool input_driver_overlay_takes_input(void);
 bool input_driver_overlay_active_page(void);
 unsigned input_driver_overlay_backdrop_images(void);
+unsigned input_driver_overlay_backdrop_tint(void);
 float input_driver_overlay_backdrop_opacity(void);
 void input_overlay_update_parallax(bool gameplay, retro_time_t now);
 /* Whatever is down now is held back, control by control, until each is

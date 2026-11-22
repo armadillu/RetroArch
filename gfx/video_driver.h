@@ -786,6 +786,7 @@ typedef struct video_frame_info
    float hdr_max_nits;
    bool overlay_behind_menu;
    unsigned overlay_backdrop_images;
+   unsigned overlay_backdrop_tint;
    float overlay_backdrop_opacity;
    bool scan_subframes;
    bool shader_active;

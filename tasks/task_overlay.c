@@ -1307,6 +1307,7 @@ static void task_overlay_deferred_load(retro_task_t *task, void *budget)
       strlcpy_lit(conf_key + _len, "_backdrop", sizeof(conf_key) - _len);
       if (config_get_bool(conf, conf_key, &tmp_bool) && tmp_bool)
       {
+         unsigned tint;
          overlay->flags |= OVERLAY_BACKDROP;
          overlay->backdrop_images = 1;
          strlcpy_lit(conf_key + _len, "_backdrop_images", sizeof(conf_key) - _len);
@@ -1315,6 +1316,9 @@ static void task_overlay_deferred_load(retro_task_t *task, void *budget)
          strlcpy_lit(conf_key + _len, "_solid_backdrop", sizeof(conf_key) - _len);
          if (config_get_bool(conf, conf_key, &tmp_bool) && tmp_bool)
             overlay->flags |= OVERLAY_SOLID_BACKDROP;
+         strlcpy_lit(conf_key + _len, "_backdrop_tint", sizeof(conf_key) - _len);
+         if (config_get_hex(conf, conf_key, &tint) && tint <= 0xffffffu)
+            overlay->backdrop_tint = 0x1000000u | tint;
       }
 
       strlcpy_lit(conf_key + _len, "_parallax_x", sizeof(conf_key) - _len);

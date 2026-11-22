@@ -7260,6 +7260,48 @@ static void gl3_xr_free(gl3_t *gl)
 }
 #endif /* HAVE_GL3_XR */
 
+#if defined(HAVE_OVERLAY) && defined(HAVE_SLANG)
+static void gl3_draw_backdrop_quad(gl3_t *gl, GLuint texture,
+      float red, float green, float blue)
+{
+   unsigned i;
+   float quad[32];
+   for (i = 0; i < 4; i++)
+   {
+      float *v = quad + 8 * i;
+      v[0] = v[2] = gl3_vertexes[2 * i];
+      v[1] = v[3] = gl3_vertexes[2 * i + 1];
+      v[4] = red;
+      v[5] = green;
+      v[6] = blue;
+      v[7] = 1.0f;
+   }
+   glActiveTexture(GL_TEXTURE1);
+   glBindTexture(GL_TEXTURE_2D, texture);
+   gl3_draw_textured_quad(gl, gl->pipelines.alpha_blend,
+         &gl->pipelines.alpha_blend_loc, gl->mvp_no_rot.data, quad);
+   glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+static void gl3_tint_backdrop_game(gl3_t *gl, unsigned tint)
+{
+   const float scale = 1.0f / 255.0f;
+   glViewport(VIDEO_POS_X(gl->vp.pos), VIDEO_POS_Y(gl->vp.pos),
+         VIDEO_SCALE_W(gl->vp.dims), VIDEO_SCALE_H(gl->vp.dims));
+   glDisable(GL_SCISSOR_TEST);
+   glDisable(GL_DEPTH_TEST);
+   glDisable(GL_CULL_FACE);
+   glEnable(GL_BLEND);
+   glBlendEquation(GL_FUNC_ADD);
+   glBlendFuncSeparate(GL_ZERO, GL_SRC_COLOR, GL_ZERO, GL_ONE);
+   gl3_draw_backdrop_quad(gl, gl->white_texture, ((tint >> 16) & 255u) * scale,
+         ((tint >> 8) & 255u) * scale, (tint & 255u) * scale);
+   gl3_blend_alpha(gl);
+   glDisable(GL_BLEND);
+   glActiveTexture(GL_TEXTURE0);
+}
+#endif
+
 #ifdef HAVE_OVERLAY
 static void gl3_render_overlay_page(gl3_t *gl, unsigned width,
       unsigned height, const video_frame_info_t *info)
@@ -7276,9 +7318,6 @@ static void gl3_render_overlay_page(gl3_t *gl, unsigned width,
          && gl3_vv_target_ensure(gl, &gl->views.art_target, &gl->views.art,
             VIDEO_SCALE_PACK(width, height)))
    {
-      unsigned i;
-      float quad[32];
-
       glBindFramebuffer(GL_FRAMEBUFFER, gl->views.art.fbo);
       glDisable(GL_SCISSOR_TEST);
       glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -7288,23 +7327,11 @@ static void gl3_render_overlay_page(gl3_t *gl, unsigned width,
       /* The art is already premultiplied by the source-over pass. */
       glBindFramebuffer(GL_FRAMEBUFFER, 0);
       glViewport(0, 0, width, height);
-      for (i = 0; i < 4; i++)
-      {
-         float *v = quad + 8 * i;
-         v[0] = v[2] = gl3_vertexes[2 * i];
-         v[1] = v[3] = gl3_vertexes[2 * i + 1];
-         v[4] = v[5] = v[6] = opacity;
-         v[7] = 1.0f;
-      }
-      glActiveTexture(GL_TEXTURE1);
-      glBindTexture(GL_TEXTURE_2D, gl->views.art.tex);
       glEnable(GL_BLEND);
       glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ZERO, GL_ONE);
-      gl3_draw_textured_quad(gl, gl->pipelines.alpha_blend,
-            &gl->pipelines.alpha_blend_loc, gl->mvp_no_rot.data, quad);
+      gl3_draw_backdrop_quad(gl, gl->views.art.tex, opacity, opacity, opacity);
       gl3_blend_alpha(gl);
       glDisable(GL_BLEND);
-      glBindTexture(GL_TEXTURE_2D, 0);
       glViewport(VIDEO_POS_X(gl->vp.pos), VIDEO_POS_Y(gl->vp.pos),
             VIDEO_SCALE_W(gl->vp.dims), VIDEO_SCALE_H(gl->vp.dims));
       gl3_render_overlay(gl, width, height, 0, art, gl->overlays);
@@ -8056,6 +8083,10 @@ static bool gl3_frame(void *data, const void *frame,
        * the SDR path changes. */
       if (gl3_needs_pq_downconvert(gl))
          gl3_encode_pq_to_sdr(gl, width, height);
+#if defined(HAVE_OVERLAY) && defined(HAVE_SLANG)
+      if (video_info->overlay_backdrop_tint)
+         gl3_tint_backdrop_game(gl, video_info->overlay_backdrop_tint);
+#endif
       /* Record Game Only: read back before any UI is drawn. Under
        * scRGB the image only lands at the final composite. */
       if (video_info->record_game_only)

@@ -177,6 +177,10 @@ cp "$here/mame2003-plus.opt" "$session/astdelux.opt"
 {
    cat "$here/parallax.cfg"
    printf 'video_driver = "%s"\ncamera_allow = "%s"\n' "$driver" "$camera"
+   if [ "$platform" = linux ]; then
+      printf 'video_fullscreen = "true"\nvideo_windowed_fullscreen = "true"\n'
+      printf 'video_fullscreen_x = "0"\nvideo_fullscreen_y = "0"\n'
+   fi
    if [ -n "$shader" ]; then
       printf 'video_shader_enable = "true"\n'
    fi

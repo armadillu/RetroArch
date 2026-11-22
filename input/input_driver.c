@@ -18196,6 +18196,12 @@ unsigned input_driver_overlay_backdrop_images(void)
    return 0;
 }
 
+unsigned input_driver_overlay_backdrop_tint(void)
+{
+   const input_overlay_t *ol = input_driver_st.overlay_ptr;
+   return ol && ol->active ? ol->active->backdrop_tint : 0;
+}
+
 float input_driver_overlay_backdrop_opacity(void)
 {
    const input_overlay_t *ol = input_driver_st.overlay_ptr;

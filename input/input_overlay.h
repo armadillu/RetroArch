@@ -316,6 +316,7 @@ struct overlay
 
    unsigned load_images_size;
    unsigned backdrop_images;
+   unsigned backdrop_tint;
    unsigned parallax_layers;
    unsigned id;
 
