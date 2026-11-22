@@ -1124,7 +1124,7 @@ check_platform Linux CAMERA_PARALLAX_GSTREAMER 'GStreamer camera tracking is' tr
 if [ "$OS" = 'Linux' ]; then
    check_enabled THREADS CAMERA_PARALLAX_GSTREAMER 'GStreamer camera tracking' 'Threads are' false
    check_enabled OVERLAY CAMERA_PARALLAX_GSTREAMER 'GStreamer camera tracking' 'Overlays are' false
-   check_pkgconf CAMERA_PARALLAX_GSTREAMER gstreamer-1.0 '1.14' '' true
+   check_pkgconf CAMERA_PARALLAX_GSTREAMER gstreamer-1.0 '1.14'
 else
    HAVE_CAMERA_PARALLAX_GSTREAMER=no
 fi
