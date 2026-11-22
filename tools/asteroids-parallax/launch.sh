@@ -79,6 +79,8 @@ if [ "$camera" = true ] && [ "$tracker" = mediapipe ]; then
    RETROARCH_PARALLAX_LANDMARK_MODEL=$(absolute_path "${RETROARCH_PARALLAX_LANDMARK_MODEL:-$data/face_landmarker.task}")
    RETROARCH_PARALLAX_LANDMARK_LOG="$data/landmarks.log"
    RETROARCH_PARALLAX_LANDMARK_HELPER="$here/landmarks.sh"
+   [ -x "$RETROARCH_PARALLAX_LANDMARK_HELPER" ] ||
+      fail "MediaPipe helper is missing or not executable at $RETROARCH_PARALLAX_LANDMARK_HELPER."
    [ -x "$RETROARCH_PARALLAX_LANDMARK_PYTHON" ] ||
       fail "Missing MediaPipe Python environment. See docs/overlay-parallax.md."
    [ -r "$RETROARCH_PARALLAX_LANDMARK_MODEL" ] ||
@@ -165,5 +167,21 @@ if [ "$platform" = mac ]; then
    fi
    open -n -W "$@"
 else
-   "$executable" "$@"
+   if [ "$camera" = true ] && [ "$tracker" = mediapipe ]; then
+      : >"$RETROARCH_PARALLAX_LANDMARK_LOG"
+   fi
+   status=0
+   "$executable" "$@" || status=$?
+   if [ "$status" -ne 0 ]; then
+      printf 'RetroArch exited with status %s. Log at %s\n' "$status" "$data/retroarch.log" >&2
+      if [ -s "$data/retroarch.log" ]; then
+         tail -n 25 "$data/retroarch.log" >&2 || :
+      fi
+   fi
+   if [ "$camera" = true ] && [ "$tracker" = mediapipe ] &&
+         [ -s "$RETROARCH_PARALLAX_LANDMARK_LOG" ]; then
+      printf 'MediaPipe error log at %s\n' "$RETROARCH_PARALLAX_LANDMARK_LOG" >&2
+      tail -n 10 "$RETROARCH_PARALLAX_LANDMARK_LOG" >&2 || :
+   fi
+   exit "$status"
 fi

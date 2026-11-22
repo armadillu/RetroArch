@@ -85,8 +85,10 @@ RETROARCH_PARALLAX_TRACKER=mediapipe ./tools/asteroids-parallax/launch.sh
 
 MediaPipe tracks the face in the camera stream and sends head position
 and an estimate of eye spacing to RetroArch. The helper runs locally
-during gameplay and writes errors to `landmarks.log` in the data
-directory. On macOS, grant camera access if prompted. To select a camera,
+during gameplay. Helper errors appear in `landmarks.log` in the data
+directory. On Linux, errors also appear in the terminal, and the
+launcher prints the end of `retroarch.log` if RetroArch exits with an error.
+On macOS, grant camera access if prompted. To select a camera,
 set `RETROARCH_CAMERA_DEVICE` to a capture node such as `/dev/video2`
 on Linux or a camera index such as `1` on macOS. The default tracker
 selection is `native`.

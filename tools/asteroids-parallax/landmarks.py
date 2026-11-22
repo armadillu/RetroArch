@@ -6,9 +6,7 @@ import os
 import struct
 import sys
 import time
-
-import cv2
-import mediapipe as mp
+import traceback
 
 
 def eye_center(landmarks, outer, inner):
@@ -31,6 +29,8 @@ def head_measurement(landmarks, aspect):
 
 
 def open_camera(device):
+    import cv2
+
     if sys.platform == "linux":
         if not device:
             usb = sorted(glob.glob("/dev/v4l/by-id/usb-*-video-index0"))
@@ -49,6 +49,9 @@ def open_camera(device):
 
 
 def track(device, model):
+    import cv2
+    import mediapipe as mp
+
     options = mp.tasks.vision.FaceLandmarkerOptions(
         base_options=mp.tasks.BaseOptions(model_asset_path=model),
         running_mode=mp.tasks.vision.RunningMode.VIDEO,
@@ -81,5 +84,17 @@ if __name__ == "__main__":
         track(sys.argv[1], os.environ["RETROARCH_PARALLAX_LANDMARK_MODEL"])
     except BrokenPipeError:
         pass
-    except (OSError, RuntimeError, ValueError) as error:
-        sys.exit(str(error))
+    except Exception as error:
+        print(f"MediaPipe tracker failed: {error}", file=sys.stderr, flush=True)
+        log = os.environ.get("RETROARCH_PARALLAX_LANDMARK_LOG")
+        if sys.platform == "linux" and log:
+            try:
+                with open(log, "w", encoding="utf-8") as stream:
+                    traceback.print_exc(file=stream)
+            except OSError:
+                traceback.print_exc()
+            else:
+                print(f"Full log at {log}", file=sys.stderr)
+        else:
+            traceback.print_exc()
+        sys.exit(1)
