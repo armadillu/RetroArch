@@ -66,6 +66,28 @@ executable. The data directory receives the saves, states, and
 `retroarch.log`. Set `RETROARCH_CAMERA_ALLOW=false` for a camera-off
 test. Extra launcher arguments go to RetroArch.
 
+### Check camera startup on Linux
+
+The artwork should be visible before tracking starts. The camera opens
+during gameplay while the game window is active. Check the build and
+the camera messages from the repository root:
+
+```sh
+./retroarch --features | grep 'Camera Parallax'
+grep -Ei 'camera parallax|overlay|video driver' tools/asteroids-parallax/local/retroarch.log
+```
+
+If RetroArch chooses a different device, specify the camera's capture
+node. Use `v4l2-ctl --list-devices` (provided by `v4l-utils` on Debian
+and Ubuntu) to find it:
+
+```sh
+RETROARCH_CAMERA_DEVICE=/dev/video2 ./tools/asteroids-parallax/launch.sh
+```
+
+Install `gstreamer1.0-tools` on Debian or Ubuntu to let the launcher
+check for the GStreamer elements before starting the game.
+
 ## Preset example
 
 ```ini

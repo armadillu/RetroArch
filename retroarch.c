@@ -7735,6 +7735,9 @@ static void retroarch_print_features(void)
 #ifdef HAVE_OVERLAY
    _len += _PSUPP_BUF(buf, _len, SUPPORTS_OVERLAY,         "Overlay",         "Overlay support");
 #endif
+#ifdef HAVE_CAMERA_PARALLAX
+   _len += _PSUPP_BUF(buf, _len, true,                    "Camera Parallax", "Camera tracking for overlays");
+#endif
 #ifdef HAVE_COMMAND
    _len += _PSUPP_BUF(buf, _len, SUPPORTS_COMMAND,         "Command",         "Command interface support");
 #endif

@@ -68,6 +68,7 @@ static void camera_parallax_gst_worker(void *data)
    struct pollfd fds[2];
    uint64_t wake;
    char *description;
+   char *device = NULL;
    const char *eye_profile;
    ssize_t ret;
 
@@ -119,6 +120,9 @@ static void camera_parallax_gst_worker(void *data)
 
    if (!retro_atomic_load_acquire_int(&capture->requested))
       goto done;
+   g_object_get(source, "device", &device, NULL);
+   RARCH_LOG("[Camera parallax] Opening %s.\n", device ? device : "V4L2 camera");
+   g_free(device);
    if (gst_element_set_state(pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE)
    {
       GstMessage *message = gst_bus_pop_filtered(bus, GST_MESSAGE_ERROR);
@@ -127,6 +131,8 @@ static void camera_parallax_gst_worker(void *data)
          gst_message_parse_error(message, &error, NULL);
          gst_message_unref(message);
       }
+      else
+         RARCH_ERR("[Camera parallax] Could not start the capture pipeline.\n");
       goto done;
    }
 
@@ -144,16 +150,27 @@ static void camera_parallax_gst_worker(void *data)
       if (result < 0 || fds[0].revents || !(fds[1].revents & POLLIN))
          break;
       message = gst_bus_pop_filtered(bus,
-            GST_MESSAGE_ELEMENT | GST_MESSAGE_ERROR | GST_MESSAGE_EOS);
+            GST_MESSAGE_ELEMENT | GST_MESSAGE_ERROR | GST_MESSAGE_EOS
+            | GST_MESSAGE_STATE_CHANGED);
       if (message)
       {
          GstMessageType type = GST_MESSAGE_TYPE(message);
          if (type == GST_MESSAGE_ELEMENT)
             camera_parallax_gst_message(capture, gst_message_get_structure(message));
+         else if (type == GST_MESSAGE_STATE_CHANGED
+               && GST_MESSAGE_SRC(message) == GST_OBJECT(pipeline))
+         {
+            GstState state;
+            gst_message_parse_state_changed(message, NULL, &state, NULL);
+            if (state == GST_STATE_PLAYING)
+               RARCH_LOG("[Camera parallax] Capture started.\n");
+         }
          else if (type == GST_MESSAGE_ERROR)
             gst_message_parse_error(message, &error, NULL);
+         else if (type == GST_MESSAGE_EOS)
+            RARCH_WARN("[Camera parallax] The camera stream ended.\n");
          gst_message_unref(message);
-         if (type != GST_MESSAGE_ELEMENT)
+         if (type == GST_MESSAGE_ERROR || type == GST_MESSAGE_EOS)
             break;
       }
    }

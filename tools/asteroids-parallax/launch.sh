@@ -53,6 +53,7 @@ data=$(absolute_path "${RETROARCH_PARALLAX_DATA:-$here/local}")
 rom=$(absolute_path "${RETROARCH_ROM:-$data/astdelux.zip}")
 core=$(absolute_path "${RETROARCH_CORE:-$support/cores/mame2003_plus_libretro.$core_extension}")
 camera=${RETROARCH_CAMERA_ALLOW:-true}
+camera_device=${RETROARCH_CAMERA_DEVICE:-}
 case $camera in
    true|false) ;;
    *) fail "RETROARCH_CAMERA_ALLOW must be true or false." ;;
@@ -60,6 +61,23 @@ esac
 
 [ -f "$rom" ] || fail "Asteroids Deluxe ROM missing at $rom. Set RETROARCH_ROM or put your ROM here."
 [ -f "$core" ] || fail "MAME 2003-Plus core missing at $core. Set RETROARCH_CORE to its path."
+if [ "$platform" = linux ] && [ "$camera" = true ]; then
+   features=$("$executable" --features) ||
+      fail "Could not check the features of $executable."
+   if ! printf '%s\n' "$features" | grep -q 'Camera Parallax .*: yes$'; then
+      fail "Camera tracking is missing from this build. Reconfigure with --enable-camera_parallax_gstreamer and rebuild. See docs/overlay-parallax.md."
+   fi
+   if command -v gst-inspect-1.0 >/dev/null 2>&1; then
+      for element in v4l2src decodebin videorate videoscale videoconvert facedetect; do
+         gst-inspect-1.0 "$element" >/dev/null 2>&1 ||
+            fail "Missing GStreamer element: $element. See the Linux runtime packages in docs/overlay-parallax.md."
+      done
+   fi
+   if [ -n "$camera_device" ] &&
+         { [ ! -c "$camera_device" ] || [ ! -r "$camera_device" ] || [ ! -w "$camera_device" ]; }; then
+      fail "Cannot open camera device $camera_device. Choose an accessible /dev/video* or /dev/v4l/by-id/ device."
+   fi
+fi
 if [ "$platform" = linux ] && [ -z "${RETROARCH_CAMERA_EYE_PROFILE:-}" ] &&
       [ -f "$data/haarcascade_mcs_eyepair_small.xml" ]; then
    export RETROARCH_CAMERA_EYE_PROFILE="$data/haarcascade_mcs_eyepair_small.xml"
@@ -71,10 +89,17 @@ trap 'rm -rf "$session"' EXIT
 trap 'exit 1' HUP INT TERM
 overlay=$(absolute_path "${RETROARCH_OVERLAY:-$here/astdelux.cfg}")
 [ -f "$overlay" ] || fail "Overlay missing at $overlay."
+if [ "$overlay" = "$here/astdelux.cfg" ]; then
+   sed -n 's/^overlay[0-9]*\(_desc[0-9]*\)\{0,1\}_overlay = "\([^"]*\)"$/\2/p' "$overlay" |
+   while IFS= read -r image; do
+      [ -r "$here/$image" ] || fail "Overlay image missing or unreadable at $here/$image."
+   done
+fi
 cp "$here/mame2003-plus.opt" "$session/astdelux.opt"
 {
    cat "$here/parallax.cfg"
    printf 'video_driver = "%s"\ncamera_allow = "%s"\n' "$driver" "$camera"
+   config_path camera_device "$camera_device"
    config_path input_overlay "$overlay"
    config_path core_options_path "$session/astdelux.opt"
    config_path savefile_directory "$data/saves"
