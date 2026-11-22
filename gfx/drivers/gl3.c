@@ -200,6 +200,10 @@ typedef struct gl3
       struct gl3_views_fbo ui;
       video_views_target_t canvas_target;
       video_views_target_t ui_target;
+#ifdef HAVE_OVERLAY
+      struct gl3_views_fbo art;
+      video_views_target_t art_target;
+#endif
       video_views_ui_dims_t saved;
       char preset[PATH_MAX_LENGTH];
       unsigned copied;
@@ -2415,11 +2419,13 @@ static void gl3_overlay_tex_geom(void *data,
 }
 
 static void gl3_render_overlay(gl3_t *gl,
-      unsigned width, unsigned height, unsigned backdrop_images)
+      unsigned width, unsigned height, unsigned backdrop_images,
+      unsigned first, unsigned limit)
 {
    size_t i;
+   unsigned count = limit - first;
 
-   if (!gl->overlay_tex || !gl->overlays)
+   if (!gl->overlay_tex || !count)
       return;
 
    glEnable(GL_BLEND);
@@ -2444,22 +2450,22 @@ static void gl3_render_overlay(gl3_t *gl,
    glEnableVertexAttribArray(1);
    glEnableVertexAttribArray(2);
 
-   gl3_bind_scratch_vbo(gl, gl->overlay_vertex_coord,
-         8 * sizeof(float) * gl->overlays);
+   gl3_bind_scratch_vbo(gl, gl->overlay_vertex_coord + 8 * first,
+         8 * sizeof(float) * count);
    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE,
          2 * sizeof(float), (void *)(uintptr_t)0);
-   gl3_bind_scratch_vbo(gl, gl->overlay_tex_coord,
-         8 * sizeof(float) * gl->overlays);
+   gl3_bind_scratch_vbo(gl, gl->overlay_tex_coord + 8 * first,
+         8 * sizeof(float) * count);
    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE,
          2 * sizeof(float), (void *)(uintptr_t)0);
-   gl3_bind_scratch_vbo(gl, gl->overlay_color_coord,
-         16 * sizeof(uint16_t) * gl->overlays);
+   gl3_bind_scratch_vbo(gl, gl->overlay_color_coord + 16 * first,
+         16 * sizeof(uint16_t) * count);
    glVertexAttribPointer(2, 4, GL_UNSIGNED_SHORT, GL_TRUE,
          4 * sizeof(uint16_t), (void *)(uintptr_t)0);
 
    if (backdrop_images)
       glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-   for (i = 0; i < gl->overlays; i++)
+   for (i = first; i < limit; i++)
    {
       if (backdrop_images && i == backdrop_images)
          gl3_blend_alpha(gl);
@@ -2469,14 +2475,14 @@ static void gl3_render_overlay(gl3_t *gl,
          continue;
       glActiveTexture(GL_TEXTURE1);
       glBindTexture(GL_TEXTURE_2D, gl->overlay_tex[i]);
-      glDrawArrays(GL_TRIANGLE_STRIP, (GLint)(4 * i), 4);
+      glDrawArrays(GL_TRIANGLE_STRIP, (GLint)(4 * (i - first)), 4);
    }
 
    glDisableVertexAttribArray(0);
    glDisableVertexAttribArray(1);
    glDisableVertexAttribArray(2);
 
-   if (backdrop_images >= gl->overlays && backdrop_images)
+   if (backdrop_images >= limit && backdrop_images)
       gl3_blend_alpha(gl);
 
    glDisable(GL_BLEND);
@@ -2559,6 +2565,9 @@ static void gl3_destroy_resources(gl3_t *gl)
    gl->views.draw_fbo = 0;
    gl3_vv_target_drop(gl, &gl->views.canvas_target, &gl->views.canvas);
    gl3_vv_target_drop(gl, &gl->views.ui_target, &gl->views.ui);
+#ifdef HAVE_OVERLAY
+   gl3_vv_target_drop(gl, &gl->views.art_target, &gl->views.art);
+#endif
 #endif
 
 #ifdef HAVE_GLSL
@@ -7251,6 +7260,61 @@ static void gl3_xr_free(gl3_t *gl)
 }
 #endif /* HAVE_GL3_XR */
 
+#ifdef HAVE_OVERLAY
+static void gl3_render_overlay_page(gl3_t *gl, unsigned width,
+      unsigned height, const video_frame_info_t *info)
+{
+   unsigned art = MIN(info->overlay_backdrop_images, gl->overlays);
+#ifdef HAVE_SLANG
+   float opacity = info->overlay_backdrop_opacity;
+   if (art && opacity == 0.0f)
+   {
+      gl3_render_overlay(gl, width, height, 0, art, gl->overlays);
+      return;
+   }
+   if (art && opacity > 0.0f && !gl->scrgb.active
+         && gl3_vv_target_ensure(gl, &gl->views.art_target, &gl->views.art,
+            VIDEO_SCALE_PACK(width, height)))
+   {
+      unsigned i;
+      float quad[32];
+
+      glBindFramebuffer(GL_FRAMEBUFFER, gl->views.art.fbo);
+      glDisable(GL_SCISSOR_TEST);
+      glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+      glClear(GL_COLOR_BUFFER_BIT);
+      gl3_render_overlay(gl, width, height, 0, 0, art);
+
+      /* The art is already premultiplied by the source-over pass. */
+      glBindFramebuffer(GL_FRAMEBUFFER, 0);
+      glViewport(0, 0, width, height);
+      for (i = 0; i < 4; i++)
+      {
+         float *v = quad + 8 * i;
+         v[0] = v[2] = gl3_vertexes[2 * i];
+         v[1] = v[3] = gl3_vertexes[2 * i + 1];
+         v[4] = v[5] = v[6] = opacity;
+         v[7] = 1.0f;
+      }
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, gl->views.art.tex);
+      glEnable(GL_BLEND);
+      glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ZERO, GL_ONE);
+      gl3_draw_textured_quad(gl, gl->pipelines.alpha_blend,
+            &gl->pipelines.alpha_blend_loc, gl->mvp_no_rot.data, quad);
+      gl3_blend_alpha(gl);
+      glDisable(GL_BLEND);
+      glBindTexture(GL_TEXTURE_2D, 0);
+      glViewport(VIDEO_POS_X(gl->vp.pos), VIDEO_POS_Y(gl->vp.pos),
+            VIDEO_SCALE_W(gl->vp.dims), VIDEO_SCALE_H(gl->vp.dims));
+      gl3_render_overlay(gl, width, height, 0, art, gl->overlays);
+      return;
+   }
+#endif
+   gl3_render_overlay(gl, width, height, art, 0, gl->overlays);
+}
+#endif
+
 static bool gl3_frame(void *data, const void *frame,
       unsigned dims,
       uint64_t frame_count,
@@ -7757,6 +7821,7 @@ static bool gl3_frame(void *data, const void *frame,
       /* The preset's first pass draws the frame, whatever the menu or
        * the last frame's passes left bound, as gl2 does */
       gl->chain.shader->use(gl, gl->chain.shader_data, 1, true);
+      glActiveTexture(GL_TEXTURE0);
       glBindTexture(GL_TEXTURE_2D, texture.image);
       glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
       glClear(GL_COLOR_BUFFER_BIT);
@@ -8028,7 +8093,7 @@ static bool gl3_frame(void *data, const void *frame,
 #ifdef HAVE_OVERLAY
    if (     (gl->flags & GL3_FLAG_OVERLAY_ENABLE) && overlay_behind_menu
          && !views_per_eye)
-      gl3_render_overlay(gl, width, height, video_info->overlay_backdrop_images);
+      gl3_render_overlay_page(gl, width, height, video_info);
 #endif
 
 #ifdef HAVE_SLANG
@@ -8062,7 +8127,7 @@ static bool gl3_frame(void *data, const void *frame,
          && !views_ui
 #endif
          )
-      gl3_render_overlay(gl, width, height, video_info->overlay_backdrop_images);
+      gl3_render_overlay_page(gl, width, height, video_info);
 #endif
 
 #ifdef HAVE_GFX_WIDGETS
@@ -8086,7 +8151,7 @@ static bool gl3_frame(void *data, const void *frame,
 #ifdef HAVE_OVERLAY
    if (     (gl->flags & GL3_FLAG_OVERLAY_ENABLE) && !overlay_behind_menu
          && !views_per_eye && views_ui)
-      gl3_render_overlay(gl, width, height, video_info->overlay_backdrop_images);
+      gl3_render_overlay_page(gl, width, height, video_info);
 #endif
 #endif
 

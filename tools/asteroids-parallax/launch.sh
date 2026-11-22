@@ -48,7 +48,7 @@ case $(uname -s) in
       executable=$(absolute_path "${RETROARCH_BIN:-$repo/retroarch}")
       [ -x "$executable" ] ||
          fail "Build ./retroarch with 'make' or set RETROARCH_BIN to your Linux build."
-      driver=gl
+      driver=glcore
       feature_executable="$executable"
       core_extension=so
       ;;
@@ -99,8 +99,15 @@ esac
 
 [ -f "$rom" ] || fail "Asteroids Deluxe ROM missing at $rom. Set RETROARCH_ROM or put your ROM here."
 [ -f "$core" ] || fail "MAME 2003-Plus core missing at $core. Set RETROARCH_CORE to its path."
-if [ "$camera" = true ] && [ "$tracker" = mediapipe ]; then
+if [ "$platform" = linux ]; then
    features=$("$feature_executable" --features) ||
+      fail "Could not check the features of $feature_executable."
+   if ! printf '%s\n' "$features" | grep -q '^ *Slang .*: yes$'; then
+      fail "The GLCore parallax launcher requires Slang support. Reconfigure with --enable-opengl_core --enable-slang and rebuild."
+   fi
+fi
+if [ "$camera" = true ] && [ "$tracker" = mediapipe ]; then
+   features=${features:-$("$feature_executable" --features)} ||
       fail "Could not check the features of $feature_executable."
    if ! printf '%s\n' "$features" | grep -q 'Camera Landmarks .*: yes$'; then
       fail "This build cannot start the MediaPipe tracker. Rebuild RetroArch from this checkout."
@@ -119,8 +126,6 @@ if [ "$camera" = true ] && [ "$tracker" = mediapipe ]; then
    export RETROARCH_PARALLAX_LANDMARK_LOG RETROARCH_PARALLAX_LANDMARK_HELPER
 fi
 if [ "$platform" = linux ] && [ "$camera" = true ]; then
-   features=${features:-$("$feature_executable" --features)} ||
-      fail "Could not check the features of $executable."
    if ! printf '%s\n' "$features" | grep -q 'Camera Parallax .*: yes$'; then
       fail "Camera tracking is missing from this build. Reconfigure with --enable-camera_parallax_gstreamer and rebuild. See docs/overlay-parallax.md."
    fi
@@ -152,10 +157,29 @@ if [ "$overlay" = "$here/astdelux.cfg" ]; then
       [ -r "$here/$image" ] || fail "Overlay image missing or unreadable at $here/$image."
    done
 fi
+shader=${RETROARCH_SHADER:-}
+if [ -n "$shader" ]; then
+   shader=$(absolute_path "$shader")
+   [ -f "$shader" ] || fail "Shader missing at $shader."
+elif [ "$platform" = mac ]; then
+   stock="$support/shaders/shaders_slang/crt/crt-effects/vector-glow.slangp"
+   if [ -f "$stock" ]; then
+      case $stock in
+         *'"'*|*'
+'*) fail "Unsupported character in shader preset path." ;;
+      esac
+      shader="$session/asteroids-vector.slangp"
+      printf '#reference "%s"\nia_R = "0.15"\nia_G = "0.95"\nia_B = "1.00"\n' "$stock" > "$shader"
+   fi
+fi
+
 cp "$here/mame2003-plus.opt" "$session/astdelux.opt"
 {
    cat "$here/parallax.cfg"
    printf 'video_driver = "%s"\ncamera_allow = "%s"\n' "$driver" "$camera"
+   if [ -n "$shader" ]; then
+      printf 'video_shader_enable = "true"\n'
+   fi
    if [ -n "$camera_device" ]; then
       config_path camera_device "$camera_device"
    fi
@@ -167,29 +191,12 @@ cp "$here/mame2003-plus.opt" "$session/astdelux.opt"
    if [ -n "$base_config" ]; then
       # Earlier entries take priority over the included config.
       printf '#include "%s"\n' "$base_config"
+      config_path rgui_config_directory "$(dirname -- "$base_config")"
    else
       printf 'menu_driver = "rgui"\n'
       config_path joypad_autoconfig_dir "$support/autoconfig"
    fi
 } > "$session/retroarch.cfg"
-
-shader=${RETROARCH_SHADER:-}
-if [ -n "$shader" ]; then
-   shader=$(absolute_path "$shader")
-   [ -f "$shader" ] || fail "Shader missing at $shader."
-elif [ "$platform" = linux ]; then
-   shader="$here/vector.glsl"
-else
-   stock="$support/shaders/shaders_slang/crt/crt-effects/vector-glow.slangp"
-   if [ -f "$stock" ]; then
-      case $stock in
-         *'"'*|*'
-'*) fail "Unsupported character in shader preset path." ;;
-      esac
-      shader="$session/asteroids-vector.slangp"
-      printf '#reference "%s"\nia_R = "0.15"\nia_G = "0.95"\nia_B = "1.00"\n' "$stock" > "$shader"
-   fi
-fi
 
 if [ -n "$shader" ]; then
    set -- "--set-shader=$shader" "$@"

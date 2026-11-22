@@ -6873,6 +6873,9 @@ static void input_overlay_load_active_geom(
 #ifdef HAVE_GLSL
          || string_is_equal(ident, "gl")
 #endif
+#if defined(HAVE_OPENGL_CORE) && defined(HAVE_SLANG)
+         || string_is_equal(ident, "glcore")
+#endif
          );
    input_overlay_set_alpha_mod(ol, opacity);
    input_overlay_set_vertex_geom(ol);

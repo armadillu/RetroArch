@@ -28,7 +28,8 @@ GStreamer development package is `libgstreamer1.0-dev`. See
 [Camera selection](#camera-selection) for the runtime packages.
 
 ```sh
-./configure --enable-camera_parallax_gstreamer --enable-opengl --enable-glsl --disable-qt --disable-wayland
+./configure --enable-camera_parallax_gstreamer --enable-opengl \
+  --enable-opengl_core --enable-slang --enable-glsl --disable-qt --disable-wayland
 make -j4
 ```
 
@@ -54,8 +55,15 @@ On macOS, double-click
 ```
 
 The macOS launcher uses RetroArch's installed Slang vector-glow preset
-when available. Linux uses a GLSL vector shader included with the launcher.
-Set `RETROARCH_SHADER` to choose a compatible preset or shader.
+when available. The Linux launcher uses `glcore` with Slang support.
+Linux uses RetroArch's normal preset selection from the shared
+configuration. You can select a shader from **Quick Menu → Shaders**
+or set `RETROARCH_SHADER` to a preset path:
+
+```sh
+RETROARCH_SHADER="/path/to/my-shader.slangp" ./tools/asteroids-parallax/launch.sh
+```
+
 The core's own artwork is disabled so the moving RetroArch backdrop
 composites with the vectors.
 
@@ -176,7 +184,7 @@ available with the OpenGL, Metal, Vulkan and SDL3 video drivers in SDR.
 Overlay Opacity sets the artwork brightness.
 Use `overlayN_backdrop_images` to apply the same composition to the first
 few images in the page, including the base artwork. It defaults to one.
-With Metal or the `gl` driver in SDR, set
+With Metal, `gl`, or a Slang-enabled `glcore` build in SDR, set
 `overlayN_solid_backdrop = true` to composite those images in order
 before adding the game's shaded light. An opaque pixel then covers the
 earlier artwork at that position. Overlay Opacity still controls the
