@@ -1207,6 +1207,9 @@ AUDIO RESAMPLER
 CAMERA
 ============================================================ */
 #include "../camera/camera_driver.c"
+#ifdef HAVE_CAMERA_PARALLAX
+#include "../camera/drivers/parallax_landmarks.c"
+#endif
 #ifdef HAVE_CAMERA_PARALLAX_GSTREAMER
 #include "../camera/drivers/parallax_gstreamer.c"
 #endif

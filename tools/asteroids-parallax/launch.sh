@@ -35,6 +35,7 @@ case $(uname -s) in
       [ -x "$executable/Contents/MacOS/RetroArch" ] ||
          fail "Build RetroArch.app with 'make bundle' or set RETROARCH_BIN to your RetroArch app."
       driver=metal
+      feature_executable="$executable/Contents/MacOS/RetroArch"
       core_extension=dylib
       ;;
    Linux)
@@ -44,6 +45,7 @@ case $(uname -s) in
       [ -x "$executable" ] ||
          fail "Build ./retroarch with 'make' or set RETROARCH_BIN to your Linux build."
       driver=gl
+      feature_executable="$executable"
       core_extension=so
       ;;
    *) fail "This launcher supports macOS and Linux." ;;
@@ -54,20 +56,43 @@ rom=$(absolute_path "${RETROARCH_ROM:-$data/astdelux.zip}")
 core=$(absolute_path "${RETROARCH_CORE:-$support/cores/mame2003_plus_libretro.$core_extension}")
 camera=${RETROARCH_CAMERA_ALLOW:-true}
 camera_device=${RETROARCH_CAMERA_DEVICE:-}
+tracker=${RETROARCH_PARALLAX_TRACKER:-native}
+features=
 case $camera in
    true|false) ;;
    *) fail "RETROARCH_CAMERA_ALLOW must be true or false." ;;
 esac
+case $tracker in
+   native|mediapipe) ;;
+   *) fail "RETROARCH_PARALLAX_TRACKER must be native or mediapipe." ;;
+esac
 
 [ -f "$rom" ] || fail "Asteroids Deluxe ROM missing at $rom. Set RETROARCH_ROM or put your ROM here."
 [ -f "$core" ] || fail "MAME 2003-Plus core missing at $core. Set RETROARCH_CORE to its path."
+if [ "$camera" = true ] && [ "$tracker" = mediapipe ]; then
+   features=$("$feature_executable" --features) ||
+      fail "Could not check the features of $feature_executable."
+   if ! printf '%s\n' "$features" | grep -q 'Camera Landmarks .*: yes$'; then
+      fail "This build cannot start the MediaPipe tracker. Rebuild RetroArch from this checkout."
+   fi
+   RETROARCH_PARALLAX_LANDMARK_PYTHON=$(absolute_path "${RETROARCH_PARALLAX_LANDMARK_PYTHON:-$data/landmarks-venv/bin/python}")
+   RETROARCH_PARALLAX_LANDMARK_MODEL=$(absolute_path "${RETROARCH_PARALLAX_LANDMARK_MODEL:-$data/face_landmarker.task}")
+   RETROARCH_PARALLAX_LANDMARK_LOG="$data/landmarks.log"
+   RETROARCH_PARALLAX_LANDMARK_HELPER="$here/landmarks.sh"
+   [ -x "$RETROARCH_PARALLAX_LANDMARK_PYTHON" ] ||
+      fail "Missing MediaPipe Python environment. See docs/overlay-parallax.md."
+   [ -r "$RETROARCH_PARALLAX_LANDMARK_MODEL" ] ||
+      fail "Missing MediaPipe model at $RETROARCH_PARALLAX_LANDMARK_MODEL."
+   export RETROARCH_PARALLAX_LANDMARK_PYTHON RETROARCH_PARALLAX_LANDMARK_MODEL
+   export RETROARCH_PARALLAX_LANDMARK_LOG RETROARCH_PARALLAX_LANDMARK_HELPER
+fi
 if [ "$platform" = linux ] && [ "$camera" = true ]; then
-   features=$("$executable" --features) ||
+   features=${features:-$("$feature_executable" --features)} ||
       fail "Could not check the features of $executable."
    if ! printf '%s\n' "$features" | grep -q 'Camera Parallax .*: yes$'; then
       fail "Camera tracking is missing from this build. Reconfigure with --enable-camera_parallax_gstreamer and rebuild. See docs/overlay-parallax.md."
    fi
-   if command -v gst-inspect-1.0 >/dev/null 2>&1; then
+   if [ "$tracker" = native ] && command -v gst-inspect-1.0 >/dev/null 2>&1; then
       for element in v4l2src decodebin videorate videoscale videoconvert facedetect; do
          gst-inspect-1.0 "$element" >/dev/null 2>&1 ||
             fail "Missing GStreamer element: $element. See the Linux runtime packages in docs/overlay-parallax.md."
@@ -131,7 +156,14 @@ if [ -n "$shader" ]; then
 fi
 set -- -v "--log-file=$data/retroarch.log" -c "$session/retroarch.cfg" -L "$core" "$@" "$rom"
 if [ "$platform" = mac ]; then
-   open -n -W "$executable" --args "$@"
+   set -- "$executable" --args "$@"
+   if [ "$camera" = true ] && [ "$tracker" = mediapipe ]; then
+      set -- --env "RETROARCH_PARALLAX_LANDMARK_PYTHON=$RETROARCH_PARALLAX_LANDMARK_PYTHON" \
+         --env "RETROARCH_PARALLAX_LANDMARK_MODEL=$RETROARCH_PARALLAX_LANDMARK_MODEL" \
+         --env "RETROARCH_PARALLAX_LANDMARK_LOG=$RETROARCH_PARALLAX_LANDMARK_LOG" \
+         --env "RETROARCH_PARALLAX_LANDMARK_HELPER=$RETROARCH_PARALLAX_LANDMARK_HELPER" "$@"
+   fi
+   open -n -W "$@"
 else
    "$executable" "$@"
 fi

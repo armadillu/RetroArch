@@ -30,6 +30,9 @@
 
 #include "camera_driver.h"
 #include "camera_parallax.h"
+#ifdef HAVE_CAMERA_PARALLAX
+#include <stdlib.h>
+#endif
 
 #if defined(HAVE_FFMPEG) && defined(HAVE_AVFORMAT) && defined(HAVE_AVCODEC) && \
    defined(HAVE_AVDEVICE) && defined(HAVE_AVUTIL) && defined(HAVE_SWSCALE)
@@ -96,6 +99,7 @@ static float camera_parallax_x, camera_parallax_y;
 static float camera_parallax_face_size = 1.0f;
 static float camera_parallax_reference_size;
 static bool camera_parallax_attempted;
+static bool camera_parallax_landmarks;
 
 void camera_parallax_publish(camera_parallax_capture_t *capture,
       float x, float y, float face_area, float eye_span)
@@ -135,7 +139,12 @@ void camera_parallax_stop(void)
       return;
 
    if (retro_atomic_exchange_int(&capture->requested, 0))
-      camera_parallax_backend_stop();
+   {
+      if (camera_parallax_landmarks)
+         camera_parallax_landmarks_stop();
+      else
+         camera_parallax_backend_stop();
+   }
    camera_parallax_attempted    = false;
    camera_parallax_last_sample  = 0;
    camera_parallax_last_face_sample = 0;
@@ -176,14 +185,18 @@ void camera_parallax_update(bool enable, retro_time_t now,
    if (!camera_parallax_attempted
          && !retro_atomic_load_acquire_int(&capture->running))
    {
+      const char *helper = getenv("RETROARCH_PARALLAX_LANDMARK_HELPER");
       camera_parallax_attempted = true;
+      camera_parallax_landmarks = helper && *helper;
       strlcpy(capture->device, device, sizeof(capture->device));
       capture->eye_scale = 0.0f;
       capture->eye_size  = 0.0f;
       retro_atomic_store_relaxed_int(&capture->sample, 0);
       retro_atomic_store_relaxed_int(&capture->requested, 1);
       retro_atomic_store_release_int(&capture->running, 1);
-      if (!camera_parallax_backend_start(capture))
+      if (!(camera_parallax_landmarks
+                  ? camera_parallax_landmarks_start(capture, helper)
+                  : camera_parallax_backend_start(capture)))
       {
          retro_atomic_store_relaxed_int(&capture->requested, 0);
          retro_atomic_store_release_int(&capture->running, 0);

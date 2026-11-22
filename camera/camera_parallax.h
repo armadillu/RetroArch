@@ -36,6 +36,9 @@ typedef struct camera_parallax_capture
 /* The capture backend owns the session until it clears running. */
 bool camera_parallax_backend_start(camera_parallax_capture_t *capture);
 void camera_parallax_backend_stop(void);
+bool camera_parallax_landmarks_start(camera_parallax_capture_t *capture,
+      const char *helper);
+void camera_parallax_landmarks_stop(void);
 void camera_parallax_publish(camera_parallax_capture_t *capture,
       float x, float y, float face_area, float eye_span);
 

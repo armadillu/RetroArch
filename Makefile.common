@@ -2751,7 +2751,8 @@ ifeq ($(HAVE_AVF), 1)
               camera/drivers/avfoundation.o \
               record/drivers/record_avfoundation.o
    ifeq ($(HAVE_COCOA)$(HAVE_THREADS)$(HAVE_OVERLAY),111)
-      OBJ += camera/drivers/parallax_avfoundation.o
+      OBJ += camera/drivers/parallax_avfoundation.o \
+             camera/drivers/parallax_landmarks.o
    endif
    LIBS    += -framework AVFoundation -framework CoreVideo \
               -framework CoreMedia   -framework Accelerate -framework AudioToolbox
@@ -2762,7 +2763,8 @@ endif
 
 ifeq ($(HAVE_CAMERA_PARALLAX_GSTREAMER)$(HAVE_THREADS)$(HAVE_OVERLAY),111)
    DEFINES += -DHAVE_CAMERA_PARALLAX_GSTREAMER
-   OBJ     += camera/drivers/parallax_gstreamer.o
+   OBJ     += camera/drivers/parallax_gstreamer.o \
+              camera/drivers/parallax_landmarks.o
    LIBS    += $(CAMERA_PARALLAX_GSTREAMER_LIBS)
    DEF_FLAGS += $(CAMERA_PARALLAX_GSTREAMER_CFLAGS)
 endif

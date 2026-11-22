@@ -66,6 +66,31 @@ executable. The data directory receives the saves, states, and
 `retroarch.log`. Set `RETROARCH_CAMERA_ALLOW=false` for a camera-off
 test. Extra launcher arguments go to RetroArch.
 
+### MediaPipe landmark tracking
+
+To use the neural landmark tracker, build RetroArch as above and set up
+the optional helper with Python 3.11 or 3.12. The pinned MediaPipe release has
+wheels for x86-64 Linux and Intel and Apple Silicon Macs.
+
+```sh
+data=tools/asteroids-parallax/local
+mkdir -p "$data"
+python3 -m venv "$data/landmarks-venv"
+"$data/landmarks-venv/bin/python" -m pip install --only-binary=:all: \
+  -r tools/asteroids-parallax/requirements-landmarks.txt
+curl -fL https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task \
+  -o "$data/face_landmarker.task"
+RETROARCH_PARALLAX_TRACKER=mediapipe ./tools/asteroids-parallax/launch.sh
+```
+
+MediaPipe tracks the face in the camera stream and sends head position
+and an estimate of eye spacing to RetroArch. The helper runs locally
+during gameplay and writes errors to `landmarks.log` in the data
+directory. On macOS, grant camera access if prompted. To select a camera,
+set `RETROARCH_CAMERA_DEVICE` to a capture node such as `/dev/video2`
+on Linux or a camera index such as `1` on macOS. The default tracker
+selection is `native`.
+
 ### Check camera startup on Linux
 
 The artwork should be visible before tracking starts. The camera opens
