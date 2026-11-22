@@ -59,6 +59,22 @@ Set `RETROARCH_SHADER` to choose a compatible preset or shader.
 The core's own artwork is disabled so the moving RetroArch backdrop
 composites with the vectors.
 
+The launcher reads your usual RetroArch config on every launch, including
+its bindings and remap paths. On Linux it looks for
+`${XDG_CONFIG_HOME:-$HOME/.config}/retroarch/retroarch.cfg`, then
+`~/.retroarch.cfg`. On macOS it looks under
+`~/Library/Application Support/RetroArch/config/`, then its parent folder.
+Set `RETROARCH_CONFIG` to use a different file:
+
+```sh
+RETROARCH_CONFIG="/path/to/retroarch.cfg" ./tools/asteroids-parallax/launch.sh
+```
+
+The launcher applies the parallax settings in a temporary session config.
+Saving the current configuration in that session targets the temporary
+file. Edit bindings in your regular RetroArch install to share them with
+future parallax sessions.
+
 Use `RETROARCH_PARALLAX_DATA` for a different local data directory,
 `RETROARCH_ROM` for a different ROM path, `RETROARCH_OVERLAY` for a
 different overlay preset, or `RETROARCH_BIN` for a different app or

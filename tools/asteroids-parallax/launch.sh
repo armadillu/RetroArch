@@ -31,6 +31,8 @@ case $(uname -s) in
    Darwin)
       platform=mac
       support="$HOME/Library/Application Support/RetroArch"
+      default_config="$support/config/retroarch.cfg"
+      legacy_config="$support/retroarch.cfg"
       executable=$(absolute_path "${RETROARCH_BIN:-$repo/RetroArch.app}")
       [ -x "$executable/Contents/MacOS/RetroArch" ] ||
          fail "Build RetroArch.app with 'make bundle' or set RETROARCH_BIN to your RetroArch app."
@@ -41,6 +43,8 @@ case $(uname -s) in
    Linux)
       platform=linux
       support="${XDG_CONFIG_HOME:-$HOME/.config}/retroarch"
+      default_config="$support/retroarch.cfg"
+      legacy_config="$HOME/.retroarch.cfg"
       executable=$(absolute_path "${RETROARCH_BIN:-$repo/retroarch}")
       [ -x "$executable" ] ||
          fail "Build ./retroarch with 'make' or set RETROARCH_BIN to your Linux build."
@@ -50,6 +54,32 @@ case $(uname -s) in
       ;;
    *) fail "This launcher supports macOS and Linux." ;;
 esac
+
+for arg do
+   case $arg in
+      -c*|--config|--config=*|--)
+         fail "Set RETROARCH_CONFIG to select the shared config. The launcher manages -c."
+         ;;
+   esac
+done
+
+base_config=${RETROARCH_CONFIG:-}
+if [ -z "$base_config" ]; then
+   if [ -f "$default_config" ]; then
+      base_config="$default_config"
+   elif [ -f "$legacy_config" ]; then
+      base_config="$legacy_config"
+   fi
+fi
+if [ -n "$base_config" ]; then
+   base_config=$(absolute_path "$base_config")
+   [ -f "$base_config" ] && [ -r "$base_config" ] ||
+      fail "Cannot read shared RetroArch config at $base_config."
+   case $base_config in
+      *'"'*|*'
+'*) fail "Unsupported character in shared RetroArch config path." ;;
+   esac
+fi
 
 data=$(absolute_path "${RETROARCH_PARALLAX_DATA:-$here/local}")
 rom=$(absolute_path "${RETROARCH_ROM:-$data/astdelux.zip}")
@@ -126,13 +156,21 @@ cp "$here/mame2003-plus.opt" "$session/astdelux.opt"
 {
    cat "$here/parallax.cfg"
    printf 'video_driver = "%s"\ncamera_allow = "%s"\n' "$driver" "$camera"
-   config_path camera_device "$camera_device"
+   if [ -n "$camera_device" ]; then
+      config_path camera_device "$camera_device"
+   fi
    config_path input_overlay "$overlay"
    config_path core_options_path "$session/astdelux.opt"
    config_path savefile_directory "$data/saves"
    config_path savestate_directory "$data/states"
    config_path system_directory "$data/system"
-   config_path joypad_autoconfig_dir "$support/autoconfig"
+   if [ -n "$base_config" ]; then
+      # Earlier entries take priority over the included config.
+      printf '#include "%s"\n' "$base_config"
+   else
+      printf 'menu_driver = "rgui"\n'
+      config_path joypad_autoconfig_dir "$support/autoconfig"
+   fi
 } > "$session/retroarch.cfg"
 
 shader=${RETROARCH_SHADER:-}
@@ -156,7 +194,7 @@ fi
 if [ -n "$shader" ]; then
    set -- "--set-shader=$shader" "$@"
 fi
-set -- -v "--log-file=$data/retroarch.log" -c "$session/retroarch.cfg" -L "$core" "$@" "$rom"
+set -- -v "--log-file=$data/retroarch.log" -L "$core" "$@" -c "$session/retroarch.cfg" "$rom"
 if [ "$platform" = mac ]; then
    set -- "$executable" --args "$@"
    if [ "$camera" = true ] && [ "$tracker" = mediapipe ]; then
